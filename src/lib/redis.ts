@@ -329,9 +329,9 @@ export async function deleteBottleReview(
     const list = store.reviews.get(bottleId) ?? [];
     const target = list.find((r) => r.authorUid === uid);
     if (!target) {
-      store.reviewLocks.delete(`${bottleId}:${uid}`);
+      const hadLock = store.reviewLocks.delete(`${bottleId}:${uid}`);
       return {
-        deleted: false,
+        deleted: hadLock,
         status: await getBottleStatus(bottleId, uid),
       };
     }
@@ -373,9 +373,9 @@ export async function deleteBottleReview(
   }
 
   if (!targetRaw) {
-    await redis.del(`review:lock:${bottleId}:${uid}`);
+    const hadLock = await redis.del(`review:lock:${bottleId}:${uid}`);
     return {
-      deleted: false,
+      deleted: hadLock > 0,
       status: await getBottleStatus(bottleId, uid),
     };
   }

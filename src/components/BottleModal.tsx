@@ -55,9 +55,7 @@ export function BottleModal({
     Math.round((soldOutCount / SOLD_OUT_THRESHOLD) * 100)
   );
 
-  const whiskybaseHref =
-    item.whiskybaseUrl ||
-    `https://www.whiskybase.com/search?q=${encodeURIComponent(item.name)}`;
+  const whiskybaseHref = item.whiskybaseUrl?.trim() || null;
 
   async function handleSoldOutVote() {
     if (hasVotedSoldOut || submittingSoldOut) return;
@@ -162,6 +160,14 @@ export function BottleModal({
       }
 
       if (!res.ok) {
+        if (res.status === 404) {
+          localStorage.removeItem(localReviewKey);
+          setFeedback({
+            type: "success",
+            text: "평가 잠금이 해제되었습니다. 다시 작성할 수 있습니다.",
+          });
+          return;
+        }
         setFeedback({
           type: "error",
           text: data.error ?? "평가 삭제에 실패했습니다.",
@@ -227,17 +233,56 @@ export function BottleModal({
           <p className="mt-3 text-sm text-stone-300">{item.note}</p>
         )}
 
-        {/* Whiskybase 이동 버튼 */}
+        {/* 캐스크 / 빈티지 / 숙성기간 세부 스펙 */}
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          <div className="rounded-xl border border-stone-800/90 bg-stone-900/60 px-3 py-2">
+            <div className="text-[10px] font-medium text-stone-400">
+              캐스크 정보
+            </div>
+            <div className="mt-0.5 truncate text-xs font-semibold text-stone-100">
+              {item.cask || "-"}
+            </div>
+          </div>
+          <div className="rounded-xl border border-stone-800/90 bg-stone-900/60 px-3 py-2">
+            <div className="text-[10px] font-medium text-stone-400">
+              빈티지
+            </div>
+            <div className="mt-0.5 truncate text-xs font-semibold text-stone-100">
+              {item.vintage || "-"}
+            </div>
+          </div>
+          <div className="rounded-xl border border-stone-800/90 bg-stone-900/60 px-3 py-2">
+            <div className="text-[10px] font-medium text-stone-400">
+              숙성기간
+            </div>
+            <div className="mt-0.5 truncate text-xs font-semibold text-stone-100">
+              {item.age || "-"}
+            </div>
+          </div>
+        </div>
+
+        {/* Whiskybase 이동 버튼 (whiskybaseUrl이 있을 때만 활성화) */}
         <div className="mt-3">
-          <a
-            href={whiskybaseHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-200 transition hover:border-amber-400 hover:bg-amber-500/20"
-          >
-            <span>Whiskybase에서 보기</span>
-            <ExternalLink className="h-3.5 w-3.5" />
-          </a>
+          {whiskybaseHref ? (
+            <a
+              href={whiskybaseHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-200 transition hover:border-amber-400 hover:bg-amber-500/20"
+            >
+              <span>Whiskybase에서 보기</span>
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          ) : (
+            <button
+              type="button"
+              disabled
+              className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-xl border border-stone-800 bg-stone-900/60 px-3 py-2 text-xs font-semibold text-stone-500"
+            >
+              <span>Whiskybase에서 보기</span>
+              <ExternalLink className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
 
         {feedback && (
@@ -324,8 +369,17 @@ export function BottleModal({
           </div>
 
           {hasReviewed ? (
-            <div className="rounded-lg border border-stone-800 bg-stone-950/60 p-3 text-center text-xs text-stone-400">
-              이미 평점 및 한줄평을 작성하셨습니다. 아래 내 평가에서 삭제 후 다시 작성할 수 있습니다.
+            <div className="flex flex-col items-center gap-2.5 rounded-lg border border-stone-800 bg-stone-950/60 p-3 text-center text-xs text-stone-400">
+              <span>이미 평점 및 한줄평을 작성하셨습니다.</span>
+              <button
+                type="button"
+                disabled={deletingReview}
+                onClick={handleDeleteMyReview}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-rose-800/70 bg-rose-950/50 px-3 py-1.5 text-xs font-semibold text-rose-200 transition hover:bg-rose-900/60 disabled:opacity-50"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                {deletingReview ? "삭제 중..." : "내 평가 삭제하고 다시 작성하기"}
+              </button>
             </div>
           ) : (
             <>

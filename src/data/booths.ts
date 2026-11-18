@@ -89,6 +89,9 @@ const RAW_BOOTHS: RawBoothDef[] = [
         abv: "57.2%",
         note: "퍼스트 필 셰리 버트 · 다크 초콜릿과 건자두",
         priceLabel: "무료 시음 (10ml)",
+        cask: "1st Fill Oloroso Sherry Butt",
+        vintage: "2014",
+        age: "12년",
       },
     ],
     bottles: [
@@ -100,6 +103,9 @@ const RAW_BOOTHS: RawBoothDef[] = [
         volume: "700ml",
         price: 220000,
         note: "페스티벌 현장 한정 200병 릴리즈",
+        cask: "1st Fill Oloroso Sherry Butt",
+        vintage: "2014",
+        age: "12년",
       },
       {
         id: "b-A02-2",
@@ -109,6 +115,9 @@ const RAW_BOOTHS: RawBoothDef[] = [
         volume: "700ml",
         price: 185000,
         note: "바닐라 빈, 구운 아몬드, 긴 여운",
+        cask: "1st Fill Ex-Bourbon Barrel",
+        vintage: "2015",
+        age: "10년",
       },
     ],
   },
@@ -248,6 +257,7 @@ const RAW_BOOTHS: RawBoothDef[] = [
         volume: "700ml",
         price: 165000,
         note: "나가노 신슈 증류소의 대표 싱글몰트",
+        whiskybaseUrl: "https://www.whiskybase.com/search?q=Mars+Komagatake",
       },
       {
         id: "b-B04-2",
@@ -757,6 +767,7 @@ const RAW_BOOTHS: RawBoothDef[] = [
         volume: "700ml",
         price: 169000,
         note: "버번, 올로로소, 페드로 히메네즈 캐스크 매링",
+        whiskybaseUrl: "https://www.whiskybase.com/search?q=The+Hearach",
       },
       {
         id: "b-E07-2",

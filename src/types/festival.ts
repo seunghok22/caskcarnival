@@ -6,6 +6,9 @@ export interface TastingItem {
   abv: string;
   note: string;
   priceLabel: string;
+  cask?: string;
+  vintage?: string;
+  age?: string;
   whiskybaseUrl?: string;
 }
 
@@ -17,6 +20,9 @@ export interface BottleItem {
   volume: string;
   price: number;
   note?: string;
+  cask?: string;
+  vintage?: string;
+  age?: string;
   whiskybaseUrl?: string;
 }
 
