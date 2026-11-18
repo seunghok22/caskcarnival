@@ -74,67 +74,73 @@ export function BoothDetail({
             </span>
           </div>
 
-          <div className="grid gap-2.5 sm:grid-cols-2">
-            {selectedBooth.tastings.map((tasting) => {
-              const st = statuses[tasting.id];
-              const isSoldOut = st?.isSoldOut ?? false;
-              const soldOutCount = st?.soldOutCount ?? 0;
-              const ratingAvg = st?.ratingAvg ?? 0;
-              const ratingCount = st?.ratingCount ?? 0;
+          {selectedBooth.tastings.length === 0 ? (
+            <div className="rounded-xl border border-stone-800/70 bg-stone-900/40 p-4 text-center text-xs text-stone-400">
+              등록된 시음 목록이 없습니다.
+            </div>
+          ) : (
+            <div className="grid gap-2.5 sm:grid-cols-2">
+              {selectedBooth.tastings.map((tasting) => {
+                const st = statuses[tasting.id];
+                const isSoldOut = st?.isSoldOut ?? false;
+                const soldOutCount = st?.soldOutCount ?? 0;
+                const ratingAvg = st?.ratingAvg ?? 0;
+                const ratingCount = st?.ratingCount ?? 0;
 
-              return (
-                <button
-                  key={tasting.id}
-                  type="button"
-                  onClick={() => onSelectTasting(tasting)}
-                  className={`group flex flex-col justify-between rounded-xl border p-3.5 text-left transition ${
-                    isSoldOut
-                      ? "border-rose-900/60 bg-rose-950/20 opacity-85 hover:border-rose-700"
-                      : "border-stone-800/90 bg-stone-900/50 hover:border-amber-500/60 hover:bg-stone-900"
-                  }`}
-                >
-                  <div>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="font-medium text-stone-100 group-hover:text-amber-200">
-                        {tasting.name}
+                return (
+                  <button
+                    key={tasting.id}
+                    type="button"
+                    onClick={() => onSelectTasting(tasting)}
+                    className={`group flex flex-col justify-between rounded-xl border p-3.5 text-left transition ${
+                      isSoldOut
+                        ? "border-rose-900/60 bg-rose-950/20 opacity-85 hover:border-rose-700"
+                        : "border-stone-800/90 bg-stone-900/50 hover:border-amber-500/60 hover:bg-stone-900"
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="font-medium text-stone-100 group-hover:text-amber-200">
+                          {tasting.name}
+                        </div>
+                        <ChevronRight className="h-4 w-4 shrink-0 text-stone-500 group-hover:text-amber-300" />
                       </div>
-                      <ChevronRight className="h-4 w-4 shrink-0 text-stone-500 group-hover:text-amber-300" />
+                      <div className="mt-1 text-xs text-stone-400">
+                        {tasting.abv !== "-" ? `ABV ${tasting.abv} · ` : ""}
+                        {tasting.note}
+                      </div>
                     </div>
-                    <div className="mt-1 text-xs text-stone-400">
-                      {tasting.abv !== "-" ? `ABV ${tasting.abv} · ` : ""}
-                      {tasting.note}
-                    </div>
-                  </div>
 
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-stone-800/80 pt-2.5">
-                    <span className="rounded bg-stone-800 px-2 py-0.5 text-[11px] font-medium text-amber-300">
-                      {tasting.priceLabel}
-                    </span>
-
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="inline-flex items-center gap-1 text-amber-300">
-                        <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                        {ratingCount > 0
-                          ? `${ratingAvg} (${ratingCount})`
-                          : "평점 없음"}
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-stone-800/80 pt-2.5">
+                      <span className="rounded bg-stone-800 px-2 py-0.5 text-[11px] font-medium text-amber-300">
+                        {tasting.priceLabel}
                       </span>
 
-                      {isSoldOut ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/20 px-2 py-0.5 font-semibold text-rose-300">
-                          <AlertTriangle className="h-3 w-3" />
-                          매진 확정
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="inline-flex items-center gap-1 text-amber-300">
+                          <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                          {ratingCount > 0
+                            ? `${ratingAvg} (${ratingCount})`
+                            : "평점 없음"}
                         </span>
-                      ) : soldOutCount > 0 ? (
-                        <span className="rounded-full bg-stone-800 px-2 py-0.5 text-[11px] text-stone-300">
-                          매진 제안 {soldOutCount}/20
-                        </span>
-                      ) : null}
+
+                        {isSoldOut ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/20 px-2 py-0.5 font-semibold text-rose-300">
+                            <AlertTriangle className="h-3 w-3" />
+                            매진 확정
+                          </span>
+                        ) : soldOutCount > 0 ? (
+                          <span className="rounded-full bg-stone-800 px-2 py-0.5 text-[11px] text-stone-300">
+                            매진 제안 {soldOutCount}/20
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* 2. 판매 보틀 목록 */}
@@ -149,76 +155,82 @@ export function BoothDetail({
             </span>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            {selectedBooth.bottles.map((bottle) => {
-              const st = statuses[bottle.id];
-              const isSoldOut = st?.isSoldOut ?? false;
-              const soldOutCount = st?.soldOutCount ?? 0;
-              const ratingAvg = st?.ratingAvg ?? 0;
-              const ratingCount = st?.ratingCount ?? 0;
+          {selectedBooth.bottles.length === 0 ? (
+            <div className="rounded-xl border border-stone-800/70 bg-stone-900/40 p-4 text-center text-xs text-stone-400">
+              등록된 판매 보틀 목록이 없습니다.
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {selectedBooth.bottles.map((bottle) => {
+                const st = statuses[bottle.id];
+                const isSoldOut = st?.isSoldOut ?? false;
+                const soldOutCount = st?.soldOutCount ?? 0;
+                const ratingAvg = st?.ratingAvg ?? 0;
+                const ratingCount = st?.ratingCount ?? 0;
 
-              return (
-                <button
-                  key={bottle.id}
-                  type="button"
-                  onClick={() => onSelectBottle(bottle)}
-                  className={`group flex flex-col justify-between rounded-xl border p-3.5 text-left transition ${
-                    isSoldOut
-                      ? "border-rose-900/60 bg-rose-950/20 opacity-85 hover:border-rose-700"
-                      : "border-stone-800 bg-stone-900/70 hover:border-amber-500/60 hover:bg-stone-900"
-                  }`}
-                >
-                  <div>
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="text-xs text-stone-400">
-                          {bottle.distillery}
-                          {bottle.abv !== "-" ? ` · ${bottle.abv}` : ""}
-                          {bottle.volume ? ` · ${bottle.volume}` : ""}
+                return (
+                  <button
+                    key={bottle.id}
+                    type="button"
+                    onClick={() => onSelectBottle(bottle)}
+                    className={`group flex flex-col justify-between rounded-xl border p-3.5 text-left transition ${
+                      isSoldOut
+                        ? "border-rose-900/60 bg-rose-950/20 opacity-85 hover:border-rose-700"
+                        : "border-stone-800 bg-stone-900/70 hover:border-amber-500/60 hover:bg-stone-900"
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="text-xs text-stone-400">
+                            {bottle.distillery}
+                            {bottle.abv !== "-" ? ` · ${bottle.abv}` : ""}
+                            {bottle.volume ? ` · ${bottle.volume}` : ""}
+                          </div>
+                          <div className="mt-0.5 font-semibold text-stone-100 group-hover:text-amber-200">
+                            {bottle.name}
+                          </div>
                         </div>
-                        <div className="mt-0.5 font-semibold text-stone-100 group-hover:text-amber-200">
-                          {bottle.name}
-                        </div>
+                        <ChevronRight className="h-4 w-4 shrink-0 text-stone-500 group-hover:text-amber-300" />
                       </div>
-                      <ChevronRight className="h-4 w-4 shrink-0 text-stone-500 group-hover:text-amber-300" />
+
+                      {bottle.note && (
+                        <p className="mt-1.5 text-xs text-stone-400">
+                          {bottle.note}
+                        </p>
+                      )}
                     </div>
 
-                    {bottle.note && (
-                      <p className="mt-1.5 text-xs text-stone-400">
-                        {bottle.note}
-                      </p>
-                    )}
-                  </div>
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-stone-800/80 pt-2.5">
+                      <div className="text-sm font-bold text-amber-300">
+                        {bottle.price.toLocaleString("ko-KR")}원
+                      </div>
 
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-stone-800/80 pt-2.5">
-                    <div className="text-sm font-bold text-amber-300">
-                      {bottle.price.toLocaleString("ko-KR")}원
-                    </div>
-
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="inline-flex items-center gap-1 text-amber-300">
-                        <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                        {ratingCount > 0
-                          ? `${ratingAvg} (${ratingCount})`
-                          : "평점 없음"}
-                      </span>
-
-                      {isSoldOut ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/20 px-2 py-0.5 font-semibold text-rose-300">
-                          <AlertTriangle className="h-3 w-3" />
-                          매진 확정
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="inline-flex items-center gap-1 text-amber-300">
+                          <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                          {ratingCount > 0
+                            ? `${ratingAvg} (${ratingCount})`
+                            : "평점 없음"}
                         </span>
-                      ) : soldOutCount > 0 ? (
-                        <span className="rounded-full bg-stone-800 px-2 py-0.5 text-[11px] text-stone-300">
-                          매진 제안 {soldOutCount}/20
-                        </span>
-                      ) : null}
+
+                        {isSoldOut ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/20 px-2 py-0.5 font-semibold text-rose-300">
+                            <AlertTriangle className="h-3 w-3" />
+                            매진 확정
+                          </span>
+                        ) : soldOutCount > 0 ? (
+                          <span className="rounded-full bg-stone-800 px-2 py-0.5 text-[11px] text-stone-300">
+                            매진 제안 {soldOutCount}/20
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </section>
 

@@ -1,4 +1,10 @@
 import type { Booth, BoothZone, BottleItem, TastingItem } from "@/types/festival";
+import boothItemsData from "./boothItems.json";
+
+const BOOTH_ITEMS = boothItemsData as Record<
+  string,
+  { tastings: TastingItem[]; bottles: BottleItem[] }
+>;
 
 interface RawBoothDef {
   code: string;
@@ -6,73 +12,25 @@ interface RawBoothDef {
   name: string;
   nameEn: string;
   category: string;
-  description?: string;
   rect: { x: number; y: number; w: number; h: number };
-  tastings?: TastingItem[];
-  bottles?: BottleItem[];
 }
 
 const RAW_BOOTHS: RawBoothDef[] = [
-  // I: 인포메이션
   {
     code: "I",
     zone: "I",
     name: "인포메이션",
     nameEn: "Information",
     category: "행사 안내",
-    description: "티켓 확인, 팔찌 배부, 시음 잔 수령 및 분실물·행사 안내 데스크",
     rect: { x: 664, y: 605, w: 52, h: 55 },
-    tastings: [
-      {
-        id: "t-I-1",
-        name: "공식 테이스팅 글라스 수령 안내",
-        abv: "-",
-        note: "입장 팔찌 착용 및 리플렛 배부",
-        priceLabel: "안내 데스크",
-      },
-    ],
-    bottles: [
-      {
-        id: "b-I-1",
-        name: "캐스크 카니발 공식 글렌케언 글라스",
-        distillery: "Cask Carnival Official",
-        abv: "-",
-        volume: "1ea",
-        price: 15000,
-        note: "행사장 한정 추가 구매용 테이스팅 글라스",
-      },
-    ],
   },
-
-  // A 구역 (우측 벽면 및 우상단)
   {
     code: "A01",
     zone: "A",
     name: "택배 부스",
     nameEn: "Parcel Service",
     category: "편의 서비스",
-    description: "현장 구매 보틀 안전 포장 및 택배 접수 서비스 부스",
     rect: { x: 865, y: 565, w: 55, h: 95 },
-    tastings: [
-      {
-        id: "t-A01-1",
-        name: "에어캡 안전 포장 & 당일 택배 접수",
-        abv: "-",
-        note: "보틀 파손 방지 전용 박스 제공",
-        priceLabel: "유료 접수",
-      },
-    ],
-    bottles: [
-      {
-        id: "b-A01-1",
-        name: "보틀 전용 안전 택배 패키지 (1~2병용)",
-        distillery: "Parcel Service",
-        abv: "-",
-        volume: "Box",
-        price: 6000,
-        note: "에어셀 완충 포장재 포함 택배 발송",
-      },
-    ],
   },
   {
     code: "A02",
@@ -80,46 +38,7 @@ const RAW_BOOTHS: RawBoothDef[] = [
     name: "캐스크 카니발",
     nameEn: "CASK CARNIVAL",
     category: "공식 오피셜 부스",
-    description: "캐스크 카니발 공식 기념 보틀 및 굿즈 스토어",
     rect: { x: 865, y: 430, w: 55, h: 90 },
-    tastings: [
-      {
-        id: "t-A02-1",
-        name: "캐스크 카니발 2026 기념 싱글 캐스크",
-        abv: "57.2%",
-        note: "퍼스트 필 셰리 버트 · 다크 초콜릿과 건자두",
-        priceLabel: "무료 시음 (10ml)",
-        cask: "1st Fill Oloroso Sherry Butt",
-        vintage: "2014",
-        age: "12년",
-      },
-    ],
-    bottles: [
-      {
-        id: "b-A02-1",
-        name: "캐스크 카니발 페스티벌 익스클루시브 보틀링",
-        distillery: "Cask Carnival Official",
-        abv: "57.2%",
-        volume: "700ml",
-        price: 220000,
-        note: "페스티벌 현장 한정 200병 릴리즈",
-        cask: "1st Fill Oloroso Sherry Butt",
-        vintage: "2014",
-        age: "12년",
-      },
-      {
-        id: "b-A02-2",
-        name: "캐스크 카니발 아메리칸 오크 싱글 배럴",
-        distillery: "Cask Carnival Official",
-        abv: "54.8%",
-        volume: "700ml",
-        price: 185000,
-        note: "바닐라 빈, 구운 아몬드, 긴 여운",
-        cask: "1st Fill Ex-Bourbon Barrel",
-        vintage: "2015",
-        age: "10년",
-      },
-    ],
   },
   {
     code: "A03",
@@ -151,37 +70,7 @@ const RAW_BOOTHS: RawBoothDef[] = [
     name: "김창수위스키증류소",
     nameEn: "Kimchangsoo Distillery",
     category: "한국 싱글몰트 증류소",
-    description: "한국 크래프트 싱글몰트 위스키의 상징, 김창수위스키증류소 공식 부스",
     rect: { x: 865, y: 215, w: 55, h: 45 },
-    tastings: [
-      {
-        id: "t-A06-1",
-        name: "김창수 위스키 김포 더 퍼스트 에디션",
-        abv: "50.8%",
-        note: "달콤한 몰트, 셰리 캐스크 숙성 스파이스",
-        priceLabel: "시음 (10ml)",
-      },
-    ],
-    bottles: [
-      {
-        id: "b-A06-1",
-        name: "김창수 위스키 김포 배치 시리즈",
-        distillery: "Kimchangsoo Distillery",
-        abv: "50.8%",
-        volume: "700ml",
-        price: 260000,
-        note: "김포 증류소 숙성 한국 싱글몰트 위스키",
-      },
-      {
-        id: "b-A06-2",
-        name: "김창수 위스키 캐스크 카니발 스페셜",
-        distillery: "Kimchangsoo Distillery",
-        abv: "56.1%",
-        volume: "700ml",
-        price: 310000,
-        note: "현장 한정 싱글 캐스크 에디션",
-      },
-    ],
   },
   {
     code: "A07",
@@ -199,8 +88,6 @@ const RAW_BOOTHS: RawBoothDef[] = [
     category: "발효 / 증류 기술",
     rect: { x: 760, y: 140, w: 45, h: 55 },
   },
-
-  // B 구역 (상단 중앙 재패니즈 & 위스키 라인)
   {
     code: "B01",
     zone: "B",
@@ -232,43 +119,6 @@ const RAW_BOOTHS: RawBoothDef[] = [
     nameEn: "DRAM × MARS Whisky",
     category: "일본 싱글몰트 위스키",
     rect: { x: 466, y: 140, w: 42, h: 55 },
-    tastings: [
-      {
-        id: "t-B04-1",
-        name: "코마가타케 리미티드 에디션",
-        abv: "50%",
-        note: "잘 익은 감, 바닐라, 은은한 피트",
-        priceLabel: "5,000원 (15ml)",
-      },
-      {
-        id: "t-B04-2",
-        name: "츠누키 싱글몰트 에디션",
-        abv: "50%",
-        note: "시트러스, 묵직한 몰트 단맛",
-        priceLabel: "5,000원 (15ml)",
-      },
-    ],
-    bottles: [
-      {
-        id: "b-B04-1",
-        name: "코마가타케 싱글몰트 에디션",
-        distillery: "MARS Shinshu Distillery",
-        abv: "50%",
-        volume: "700ml",
-        price: 165000,
-        note: "나가노 신슈 증류소의 대표 싱글몰트",
-        whiskybaseUrl: "https://www.whiskybase.com/search?q=Mars+Komagatake",
-      },
-      {
-        id: "b-B04-2",
-        name: "야쿠시마 에이징 싱글 캐스크",
-        distillery: "MARS Tsunuki / Yakushima",
-        abv: "58%",
-        volume: "700ml",
-        price: 290000,
-        note: "야쿠시마 숙성고 한정판 캐스크 스트렝스",
-      },
-    ],
   },
   {
     code: "B05",
@@ -293,38 +143,7 @@ const RAW_BOOTHS: RawBoothDef[] = [
     nameEn: "Sakurao Distillery",
     category: "일본 싱글몰트 & 진",
     rect: { x: 340, y: 140, w: 42, h: 55 },
-    tastings: [
-      {
-        id: "t-B07-1",
-        name: "사쿠라오 싱글몰트 재패니즈 위스키",
-        abv: "43%",
-        note: "세토내해 해풍 숙성, 건포도와 오렌지",
-        priceLabel: "무료 시음 (10ml)",
-      },
-    ],
-    bottles: [
-      {
-        id: "b-B07-1",
-        name: "사쿠라오 셰리 캐스크 스틸맨스 셀렉션",
-        distillery: "Sakurao Distillery",
-        abv: "50%",
-        volume: "700ml",
-        price: 185000,
-        note: "히로시마 사쿠라오 증류소 한정 셰리 캐스크",
-      },
-      {
-        id: "b-B07-2",
-        name: "토고우치 싱글몰트 위스키",
-        distillery: "Sakurao Distillery",
-        abv: "43%",
-        volume: "700ml",
-        price: 135000,
-        note: "터널 숙성고에서 완성된 부드러운 풍미",
-      },
-    ],
   },
-
-  // C 구역 (좌상단 벽면 및 좌상단 아일랜드)
   {
     code: "C01",
     zone: "C",
@@ -395,37 +214,7 @@ const RAW_BOOTHS: RawBoothDef[] = [
     name: "위스키내비",
     nameEn: "WHISKYNAVI",
     category: "독립병입자 / 수입사",
-    description: "국내 대표 독립병입 브랜드 위스키내비 메인 시음 및 전시 부스",
     rect: { x: 226, y: 140, w: 84, h: 55 },
-    tastings: [
-      {
-        id: "t-C09-1",
-        name: "위스키내비 시그니처 싱글 캐스크 시음",
-        abv: "56.4%",
-        note: "퍼스트 필 올로로소 셰리 · 진한 건과일과 오크",
-        priceLabel: "6,000원 (15ml)",
-      },
-    ],
-    bottles: [
-      {
-        id: "b-C09-1",
-        name: "위스키내비 스페이사이드 싱글 캐스크",
-        distillery: "WHISKYNAVI",
-        abv: "56.4%",
-        volume: "700ml",
-        price: 215000,
-        note: "위스키내비 엄선 싱글 캐스크 보틀링",
-      },
-      {
-        id: "b-C09-2",
-        name: "위스키내비 콜라보레이션 에디션",
-        distillery: "WHISKYNAVI",
-        abv: "58.1%",
-        volume: "700ml",
-        price: 245000,
-        note: "캐스크 스트렝스 한정 보틀",
-      },
-    ],
   },
   {
     code: "C10",
@@ -449,40 +238,8 @@ const RAW_BOOTHS: RawBoothDef[] = [
     name: "위스키내비 EXCLUSIVE 판매",
     nameEn: "WHISKYNAVI EXCLUSIVE",
     category: "한정판 전용 판매 부스",
-    description: "위스키내비 페스티벌 익스클루시브 보틀 전용 판매 부스",
     rect: { x: 100, y: 140, w: 42, h: 55 },
-    tastings: [
-      {
-        id: "t-C12-1",
-        name: "익스클루시브 라인업 현장 구매 안내",
-        abv: "CS",
-        note: "시음은 C09 부스에서 진행됩니다",
-        priceLabel: "전용 판매처",
-      },
-    ],
-    bottles: [
-      {
-        id: "b-C12-1",
-        name: "위스키내비 CASK CARNIVAL EXCLUSIVE #1",
-        distillery: "WHISKYNAVI EXCLUSIVE",
-        abv: "59.2%",
-        volume: "700ml",
-        price: 265000,
-        note: "페스티벌 한정 릴리즈 싱글 캐스크 #1",
-      },
-      {
-        id: "b-C12-2",
-        name: "위스키내비 CASK CARNIVAL EXCLUSIVE #2",
-        distillery: "WHISKYNAVI EXCLUSIVE",
-        abv: "57.6%",
-        volume: "700ml",
-        price: 280000,
-        note: "페스티벌 한정 릴리즈 싱글 캐스크 #2",
-      },
-    ],
   },
-
-  // D 구역 (중앙 하단 D01~D07 & 중앙 상단 D08~D17)
   {
     code: "D01",
     zone: "D",
@@ -505,44 +262,7 @@ const RAW_BOOTHS: RawBoothDef[] = [
     name: "스카치 몰트 위스키 소사이어티",
     nameEn: "THE SCOTCH MALT WHISKY SOCIETY",
     category: "SMWS 싱글 캐스크 클럽",
-    description: "세계 최대 싱글 캐스크 위스키 클럽 SMWS 공식 부스",
     rect: { x: 382, y: 475, w: 84, h: 45 },
-    tastings: [
-      {
-        id: "t-D03-1",
-        name: "SMWS 플레이버 프로파일 시음 (Sweet & Spicy)",
-        abv: "58.4%",
-        note: "개성 넘치는 싱글 캐스크 원액 시음",
-        priceLabel: "8,000원 (15ml)",
-      },
-      {
-        id: "t-D03-2",
-        name: "SMWS 플레이버 프로파일 시음 (Heavily Peated)",
-        abv: "60.2%",
-        note: "강렬한 피트와 크리미한 몰트 밸런스",
-        priceLabel: "9,000원 (15ml)",
-      },
-    ],
-    bottles: [
-      {
-        id: "b-D03-1",
-        name: "SMWS 페스티벌 스페셜 싱글 캐스크 보틀",
-        distillery: "SMWS",
-        abv: "58.4%",
-        volume: "700ml",
-        price: 235000,
-        note: "소사이어티 엄선 캐스크 스트렝스 몰트",
-      },
-      {
-        id: "b-D03-2",
-        name: "SMWS 피티드 아일라 싱글 캐스크",
-        distillery: "SMWS",
-        abv: "60.2%",
-        volume: "700ml",
-        price: 255000,
-        note: "비냉각여과 · 무색소 싱글 캐스크",
-      },
-    ],
   },
   {
     code: "D04",
@@ -647,35 +367,6 @@ const RAW_BOOTHS: RawBoothDef[] = [
     nameEn: "Saburomaru Distillery",
     category: "일본 헤비 피트 증류소",
     rect: { x: 424, y: 260, w: 42, h: 45 },
-    tastings: [
-      {
-        id: "t-D16-1",
-        name: "사부로마루 싱글몰트 피티드",
-        abv: "48%",
-        note: "주조용 청동 증류기 ZEMON이 만든 묵직한 스모키 풍미",
-        priceLabel: "6,000원 (15ml)",
-      },
-    ],
-    bottles: [
-      {
-        id: "b-D16-1",
-        name: "사부로마루 타로 시리즈 싱글몰트",
-        distillery: "Saburomaru Distillery",
-        abv: "48%",
-        volume: "700ml",
-        price: 210000,
-        note: "토야마현 사부로마루 증류소 피트 싱글몰트",
-      },
-      {
-        id: "b-D16-2",
-        name: "사부로마루 캐스크 스트렝스 에디션",
-        distillery: "Saburomaru Distillery",
-        abv: "59%",
-        volume: "700ml",
-        price: 285000,
-        note: "강렬한 내륙 피트와 우디한 여운",
-      },
-    ],
   },
   {
     code: "D17",
@@ -685,8 +376,6 @@ const RAW_BOOTHS: RawBoothDef[] = [
     category: "스페셜티 위스키 바",
     rect: { x: 382, y: 260, w: 42, h: 45 },
   },
-
-  // E 구역 (우측 하단 아일랜드 E01~E08 & 우측 상단 아일랜드 E09~E14)
   {
     code: "E01",
     zone: "E",
@@ -742,43 +431,6 @@ const RAW_BOOTHS: RawBoothDef[] = [
     nameEn: "Isle of Harris",
     category: "스코틀랜드 아일랜드 증류소",
     rect: { x: 664, y: 430, w: 42, h: 45 },
-    tastings: [
-      {
-        id: "t-E07-1",
-        name: "더 히어라크 (The Hearach) 싱글몰트",
-        abv: "46%",
-        note: "해리스 섬의 첫 싱글몰트 · 은은한 피트와 헤더 허니",
-        priceLabel: "무료 시음 (10ml)",
-      },
-      {
-        id: "t-E07-2",
-        name: "아일 오브 해리스 진",
-        abv: "45%",
-        note: "슈가 켈프(해초)가 선사하는 청량한 해양 아로마",
-        priceLabel: "무료 시음 (10ml)",
-      },
-    ],
-    bottles: [
-      {
-        id: "b-E07-1",
-        name: "더 히어라크 싱글몰트 스카치 위스키",
-        distillery: "Isle of Harris Distillery",
-        abv: "46%",
-        volume: "700ml",
-        price: 169000,
-        note: "버번, 올로로소, 페드로 히메네즈 캐스크 매링",
-        whiskybaseUrl: "https://www.whiskybase.com/search?q=The+Hearach",
-      },
-      {
-        id: "b-E07-2",
-        name: "더 히어라크 올로로소 캐스크 성숙 배치",
-        distillery: "Isle of Harris Distillery",
-        abv: "46%",
-        volume: "700ml",
-        price: 179000,
-        note: "100% 퍼스트 필 올로로소 셰리 버트 숙성",
-      },
-    ],
   },
   {
     code: "E08",
@@ -836,8 +488,6 @@ const RAW_BOOTHS: RawBoothDef[] = [
     category: "프리미엄 위스키 수입사",
     rect: { x: 664, y: 260, w: 42, h: 45 },
   },
-
-  // F 구역 (좌하단 푸드/페어링 & 칠링 존)
   {
     code: "F01",
     zone: "F",
@@ -878,8 +528,6 @@ const RAW_BOOTHS: RawBoothDef[] = [
     category: "오크 캐스크 쿠퍼리지",
     rect: { x: 100, y: 465, w: 42, h: 55 },
   },
-
-  // G 구역 (하단 중앙 라인)
   {
     code: "G01",
     zone: "G",
@@ -910,37 +558,7 @@ const RAW_BOOTHS: RawBoothDef[] = [
     name: "한국버번위스키클럽",
     nameEn: "Korea Bourbon Whisk[e]y Club",
     category: "아메리칸 버번 & 라이",
-    description: "싱글 배럴 픽과 배럴 프루프 아메리칸 위스키를 선보이는 부스",
     rect: { x: 466, y: 605, w: 42, h: 55 },
-    tastings: [
-      {
-        id: "t-G04-1",
-        name: "KBWC 싱글 배럴 픽 버번",
-        abv: "58.5%",
-        note: "진한 메이플 시럽, 구운 오크, 시나몬 스파이스",
-        priceLabel: "5,000원 (15ml)",
-      },
-    ],
-    bottles: [
-      {
-        id: "b-G04-1",
-        name: "한국버번위스키클럽 프라이빗 배럴 셀렉션",
-        distillery: "KBWC Single Barrel",
-        abv: "58.5%",
-        volume: "750ml",
-        price: 175000,
-        note: "클럽 엄선 켄터키 스트레이트 버번 싱글 배럴",
-      },
-      {
-        id: "b-G04-2",
-        name: "KBWC 배럴 스트렝스 라이 픽",
-        distillery: "KBWC Single Barrel",
-        abv: "56.8%",
-        volume: "750ml",
-        price: 185000,
-        note: "민트, 다크 초콜릿, 강렬한 호밀 스파이스",
-      },
-    ],
   },
   {
     code: "G05",
@@ -969,58 +587,18 @@ const RAW_BOOTHS: RawBoothDef[] = [
 ];
 
 export const BOOTHS: Booth[] = RAW_BOOTHS.map((raw) => {
-  const id = `booth-${raw.code.toLowerCase()}`;
-  const defaultTastings: TastingItem[] = [
-    {
-      id: `t-${raw.code}-1`,
-      name: `${raw.name} 대표 시음 라인업 #1`,
-      abv: raw.zone === "F" ? "-" : "46%",
-      note: `${raw.nameEn} 시그니처 테이스팅`,
-      priceLabel: raw.zone === "F" ? "현장 문의" : "무료 시음 (10ml)",
-    },
-    {
-      id: `t-${raw.code}-2`,
-      name: `${raw.name} 스페셜 캐스크 시음 #2`,
-      abv: raw.zone === "F" ? "-" : "54.5%",
-      note: "캐스크 카니발 현장 한정 테이스팅",
-      priceLabel: raw.zone === "F" ? "현장 판매" : "5,000원 (15ml)",
-    },
-  ];
-
-  const defaultBottles: BottleItem[] = [
-    {
-      id: `b-${raw.code}-1`,
-      name: `${raw.name} 시그니처 에디션`,
-      distillery: raw.nameEn,
-      abv: raw.zone === "F" ? "-" : "46%",
-      volume: raw.zone === "F" ? "1세트" : "700ml",
-      price: raw.zone === "F" ? 25000 : 145000,
-      note: `${raw.name} (${raw.code}) 부스 현장 판매 상품`,
-    },
-    {
-      id: `b-${raw.code}-2`,
-      name: `${raw.name} 페스티벌 익스클루시브`,
-      distillery: raw.nameEn,
-      abv: raw.zone === "F" ? "-" : "56.2%",
-      volume: raw.zone === "F" ? "스페셜 세트" : "700ml",
-      price: raw.zone === "F" ? 38000 : 210000,
-      note: "캐스크 카니발 현장 한정 수량 판매",
-    },
-  ];
-
+  const items = BOOTH_ITEMS[raw.code] ?? { tastings: [], bottles: [] };
   return {
-    id,
+    id: `booth-${raw.code.toLowerCase()}`,
     code: raw.code,
     zone: raw.zone,
     name: raw.name,
     nameEn: raw.nameEn,
     category: raw.category,
-    description:
-      raw.description ??
-      `${raw.name} (${raw.nameEn}) 공식 부스입니다. 시음 및 현장 한정 보틀 목록을 확인해 보세요.`,
+    description: `${raw.name} (${raw.nameEn})`,
     rect: raw.rect,
-    tastings: raw.tastings ?? defaultTastings,
-    bottles: raw.bottles ?? defaultBottles,
+    tastings: items.tastings,
+    bottles: items.bottles,
   };
 });
 
