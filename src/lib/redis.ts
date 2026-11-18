@@ -33,13 +33,17 @@ function getMemoryStore(): MemoryStore {
   return globalForStore.__caskMemoryStore;
 }
 
-const hasUpstashEnv =
-  Boolean(process.env.UPSTASH_REDIS_REST_URL) &&
-  Boolean(process.env.UPSTASH_REDIS_REST_TOKEN);
+const redisUrl =
+  process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+const redisToken =
+  process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
 
-const redis = hasUpstashEnv ? Redis.fromEnv() : null;
+const redis =
+  redisUrl && redisToken
+    ? new Redis({ url: redisUrl, token: redisToken })
+    : null;
 
-if (!hasUpstashEnv && process.env.NODE_ENV !== "production") {
+if (!redis && process.env.NODE_ENV !== "production") {
   console.warn(
     "[caskcarnival] UPSTASH_REDIS_REST_URL/TOKEN 미설정: 로컬 메모리 폴백 모드로 동작합니다."
   );
@@ -149,10 +153,72 @@ export async function getAllBottleStatuses(
   bottleIds: string[],
   uid: string | null
 ): Promise<Record<string, BottleDynamicStatus>> {
-  const entries = await Promise.all(
-    bottleIds.map(async (id) => [id, await getBottleStatus(id, uid)] as const)
-  );
-  return Object.fromEntries(entries);
+  if (bottleIds.length === 0) return {};
+
+  if (!redis) {
+    const entries = await Promise.all(
+      bottleIds.map(async (id) => [id, await getBottleStatus(id, uid)] as const)
+    );
+    return Object.fromEntries(entries);
+  }
+
+  // Upstash 파이프라인을 사용해 다수 보틀 상태를 한 번의 HTTP 요청으로 조회
+  const pipeline = redis.pipeline();
+  for (const bottleId of bottleIds) {
+    pipeline.scard(`soldout:voters:${bottleId}`);
+    pipeline.hgetall(`rating:${bottleId}`);
+    pipeline.lrange(`reviews:${bottleId}`, 0, 19);
+    if (uid) {
+      pipeline.sismember(`soldout:voters:${bottleId}`, uid);
+      pipeline.exists(`review:lock:${bottleId}:${uid}`);
+    }
+  }
+
+  const results = await pipeline.exec();
+  const step = uid ? 5 : 3;
+  const map: Record<string, BottleDynamicStatus> = {};
+
+  bottleIds.forEach((bottleId, idx) => {
+    const base = idx * step;
+    const soldOutCount = Number(results[base] ?? 0);
+    const ratingObj =
+      (results[base + 1] as {
+        sum?: number | string;
+        count?: number | string;
+      } | null) ?? {};
+    const sum = Number(ratingObj.sum ?? 0);
+    const count = Number(ratingObj.count ?? 0);
+    const rawReviews = (results[base + 2] as unknown[]) ?? [];
+
+    const reviews: ReviewItem[] = rawReviews
+      .map((item) => {
+        if (typeof item === "string") {
+          try {
+            return JSON.parse(item) as ReviewItem;
+          } catch {
+            return null;
+          }
+        }
+        return item as ReviewItem;
+      })
+      .filter((item): item is ReviewItem => item !== null);
+
+    const hasVotedSoldOut = uid ? Number(results[base + 3] ?? 0) === 1 : false;
+    const hasReviewed = uid ? Number(results[base + 4] ?? 0) === 1 : false;
+
+    map[bottleId] = {
+      bottleId,
+      soldOutCount,
+      isSoldOut: soldOutCount >= SOLD_OUT_THRESHOLD,
+      ratingAvg: count > 0 ? Number((sum / count).toFixed(1)) : 0,
+      ratingCount: count,
+      reviews,
+      hasVotedSoldOut,
+      hasReviewed,
+    };
+  });
+
+  return map;
 }
 
 export async function voteSoldOut(

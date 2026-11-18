@@ -1,7 +1,8 @@
 "use client";
 
-import { MapPin } from "lucide-react";
-import type { Booth, BottleDynamicStatus } from "@/types/festival";
+import { useState } from "react";
+import { Search, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
+import type { Booth, BoothZone, BottleDynamicStatus } from "@/types/festival";
 
 interface BoothMapProps {
   booths: Booth[];
@@ -10,86 +11,408 @@ interface BoothMapProps {
   statuses: Record<string, BottleDynamicStatus>;
 }
 
+const ZONE_FILTERS: { label: string; value: BoothZone | "ALL" }[] = [
+  { label: "전체 (71)", value: "ALL" },
+  { label: "A구역", value: "A" },
+  { label: "B구역", value: "B" },
+  { label: "C구역", value: "C" },
+  { label: "D구역", value: "D" },
+  { label: "E구역", value: "E" },
+  { label: "F구역", value: "F" },
+  { label: "G구역", value: "G" },
+  { label: "I (안내)", value: "I" },
+];
+
 export function BoothMap({
   booths,
   selectedBoothId,
   onSelectBooth,
   statuses,
 }: BoothMapProps) {
+  const [activeZone, setActiveZone] = useState<BoothZone | "ALL">("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [hoveredBoothId, setHoveredBoothId] = useState<string | null>(null);
+  const [zoom, setZoom] = useState<number>(1);
+
+  const selectedBooth =
+    booths.find((b) => b.id === selectedBoothId) ?? booths[0];
+  const hoveredBooth = hoveredBoothId
+    ? booths.find((b) => b.id === hoveredBoothId)
+    : null;
+  const previewBooth = hoveredBooth ?? selectedBooth;
+
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+
+  function isBoothMatched(booth: Booth): boolean {
+    const zoneMatch = activeZone === "ALL" || booth.zone === activeZone;
+    if (!zoneMatch) return false;
+    if (!normalizedQuery) return true;
+    return (
+      booth.code.toLowerCase().includes(normalizedQuery) ||
+      booth.name.toLowerCase().includes(normalizedQuery) ||
+      booth.nameEn.toLowerCase().includes(normalizedQuery)
+    );
+  }
+
   return (
     <section className="rounded-2xl border border-amber-900/40 bg-[#181411] p-4 shadow-lg">
-      <div className="mb-3 flex items-center justify-between">
+      {/* 상단 헤더 & 검색/필터 */}
+      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-base font-semibold text-amber-200">
-            행사장 부스 지도
+          <h2 className="text-base font-bold text-amber-100">
+            행사장 부스 배치도
           </h2>
           <p className="text-xs text-stone-400">
-            부스를 클릭하면 아래에 시음 및 판매 보틀 목록이 표시됩니다.
+            지도에서 부스(A01~G07, I)를 클릭하면 하단에서 시음 및 판매 보틀을 확인할 수 있습니다.
           </p>
         </div>
-        <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-amber-300 border border-amber-500/20">
-          {booths.length}개 부스
-        </span>
+
+        {/* 부스 검색창 */}
+        <div className="relative w-full sm:w-64">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-stone-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="부스 번호(예: D03) 또는 이름 검색"
+            className="w-full rounded-xl border border-stone-700 bg-stone-900/90 py-1.5 pl-8 pr-3 text-xs text-stone-100 placeholder:text-stone-500 focus:border-amber-500 focus:outline-none"
+          />
+        </div>
       </div>
 
-      {/* 정적 평면도 기반 인터랙티브 부스 맵 */}
-      <div className="relative h-64 w-full overflow-hidden rounded-xl border border-stone-800 bg-gradient-to-br from-[#211b16] via-[#171310] to-[#120f0d]">
-        {/* 구역 가이드 라인 */}
-        <div className="pointer-events-none absolute inset-0 opacity-20">
-          <div className="h-full w-full bg-[linear-gradient(to_right,#a8a29e_1px,transparent_1px),linear-gradient(to_bottom,#a8a29e_1px,transparent_1px)] bg-[size:32px_32px]" />
+      {/* 구역 필터 탭 & 줌 컨트롤 */}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex gap-1.5 overflow-x-auto pb-1">
+          {ZONE_FILTERS.map((zf) => {
+            const active = activeZone === zf.value;
+            return (
+              <button
+                key={zf.value}
+                type="button"
+                onClick={() => setActiveZone(zf.value)}
+                className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition ${
+                  active
+                    ? "border-amber-400 bg-amber-500/20 text-amber-200"
+                    : "border-stone-800 bg-stone-900/70 text-stone-400 hover:border-stone-700 hover:text-stone-200"
+                }`}
+              >
+                {zf.label}
+              </button>
+            );
+          })}
         </div>
 
-        {/* 입구 / 무대 표식 */}
-        <div className="pointer-events-none absolute left-1/2 top-2 -translate-x-1/2 rounded-full border border-stone-700 bg-stone-900/90 px-3 py-0.5 text-[10px] tracking-wider text-stone-400">
-          MAIN STAGE
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setZoom((z) => Math.max(1, Number((z - 0.25).toFixed(2))))}
+            className="rounded-lg border border-stone-800 bg-stone-900 p-1.5 text-stone-300 hover:border-stone-700"
+            title="축소"
+          >
+            <ZoomOut className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setZoom(1)}
+            className="rounded-lg border border-stone-800 bg-stone-900 px-2 py-1 text-[11px] text-stone-300 hover:border-stone-700"
+            title="기본 배율"
+          >
+            <RotateCcw className=" inline h-3 w-3 mr-1" />
+            {Math.round(zoom * 100)}%
+          </button>
+          <button
+            type="button"
+            onClick={() => setZoom((z) => Math.min(2, Number((z + 0.25).toFixed(2))))}
+            className="rounded-lg border border-stone-800 bg-stone-900 p-1.5 text-stone-300 hover:border-stone-700"
+            title="확대"
+          >
+            <ZoomIn className="h-3.5 w-3.5" />
+          </button>
         </div>
-        <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-stone-700 bg-stone-900/90 px-3 py-0.5 text-[10px] tracking-wider text-stone-400">
-          ENTRANCE
-        </div>
+      </div>
 
-        {/* 부스 핀 */}
-        {booths.map((booth) => {
-          const isSelected = booth.id === selectedBoothId;
-          const soldOutCount = booth.bottles.filter(
-            (b) => statuses[b.id]?.isSoldOut
-          ).length;
+      {/* 원본 도면 스타일 인터랙티브 SVG 맵 */}
+      <div className="overflow-x-auto rounded-xl border border-stone-700 bg-[#fcfaf8] shadow-inner">
+        <div
+          style={{
+            width: `${100 * zoom}%`,
+            minWidth: "680px",
+          }}
+          className="transition-all duration-150"
+        >
+          <svg
+            viewBox="0 0 960 690"
+            className="block h-auto w-full select-none"
+            role="img"
+            aria-label="Cask Carnival 행사장 부스 지도"
+          >
+            {/* 도면 배경 */}
+            <rect x="0" y="0" width="960" height="690" fill="#fcfaf8" />
 
-          return (
-            <button
-              key={booth.id}
-              type="button"
-              onClick={() => onSelectBooth(booth.id)}
-              style={{
-                left: `${booth.mapPosition.x}%`,
-                top: `${booth.mapPosition.y}%`,
-              }}
-              className={`group absolute -translate-x-1/2 -translate-y-1/2 rounded-xl border px-3 py-2 text-left transition-all ${
-                isSelected
-                  ? "z-10 scale-105 border-amber-400 bg-amber-500/20 shadow-[0_0_20px_rgba(245,158,11,0.25)]"
-                  : "border-stone-700 bg-stone-900/90 hover:border-amber-500/60 hover:bg-stone-800/90"
-              }`}
+            {/* 상단 ROOM A ~ ROOM F 영역 */}
+            <g stroke="#8b303e" strokeWidth="1.6">
+              {/* ROOM A */}
+              <rect x="100" y="20" width="100" height="120" fill="#f3dfe2" />
+              {/* ROOM B */}
+              <rect x="200" y="20" width="100" height="120" fill="#f3dfe2" />
+              {/* A-B와 C 사이 빈 공간 */}
+              <rect x="300" y="20" width="40" height="120" fill="#fcfaf8" />
+              {/* ROOM C */}
+              <rect x="340" y="20" width="100" height="120" fill="#f3dfe2" />
+              {/* ROOM D */}
+              <rect x="440" y="20" width="100" height="120" fill="#f3dfe2" />
+              {/* ROOM E */}
+              <rect x="540" y="20" width="94" height="120" fill="#f3dfe2" />
+              {/* E와 F 사이 복도 */}
+              <rect x="634" y="20" width="41" height="120" fill="#fcfaf8" />
+              {/* ROOM F */}
+              <rect x="675" y="20" width="65" height="120" fill="#f3dfe2" />
+            </g>
+
+            {/* ROOM 텍스트 */}
+            <g
+              fill="#5c1f28"
+              fontFamily="sans-serif"
+              textAnchor="middle"
+              fontWeight="700"
             >
-              <div className="flex items-center gap-1.5">
-                <MapPin
-                  className={`h-3.5 w-3.5 ${
-                    isSelected ? "text-amber-300" : "text-stone-400"
-                  }`}
-                />
-                <span className="text-xs font-bold text-amber-100">
-                  {booth.code}
-                </span>
-                {soldOutCount > 0 && (
-                  <span className="rounded bg-rose-500/20 px-1 py-0.5 text-[10px] font-medium text-rose-300">
-                    매진 {soldOutCount}
-                  </span>
-                )}
-              </div>
-              <div className="mt-0.5 max-w-[110px] truncate text-[11px] text-stone-300">
-                {booth.name}
-              </div>
-            </button>
-          );
-        })}
+              <text x="150" y="72" fontSize="12">
+                ROOM
+              </text>
+              <text x="150" y="92" fontSize="18">
+                A
+              </text>
+
+              <text x="250" y="72" fontSize="12">
+                ROOM
+              </text>
+              <text x="250" y="92" fontSize="18">
+                B
+              </text>
+
+              <text x="390" y="72" fontSize="12">
+                ROOM
+              </text>
+              <text x="390" y="92" fontSize="18">
+                C
+              </text>
+
+              <text x="490" y="72" fontSize="12">
+                ROOM
+              </text>
+              <text x="490" y="92" fontSize="18">
+                D
+              </text>
+
+              <text x="587" y="72" fontSize="12">
+                ROOM
+              </text>
+              <text x="587" y="92" fontSize="18">
+                E
+              </text>
+
+              <text x="707" y="72" fontSize="12">
+                ROOM
+              </text>
+              <text x="707" y="92" fontSize="18">
+                F
+              </text>
+            </g>
+
+            {/* 메인 홀 외벽 테두리 */}
+            <rect
+              x="100"
+              y="140"
+              width="820"
+              height="520"
+              fill="none"
+              stroke="#8b303e"
+              strokeWidth="1.8"
+            />
+
+            {/* 좌측 화장실 돌출부 */}
+            <g stroke="#8b303e" strokeWidth="1.6" fill="#fcfaf8">
+              <rect x="60" y="268" width="40" height="72" />
+            </g>
+            <g fill="#5c1f28" textAnchor="middle" fontFamily="sans-serif">
+              <circle cx="75" cy="292" r="3" />
+              <path d="M71 297 h8 v10 h-8 z" />
+              <circle cx="86" cy="292" r="3" />
+              <path d="M82 297 h8 l-2 10 h-4 z" />
+              <text x="80" y="324" fontSize="10" fontWeight="700">
+                화장실
+              </text>
+            </g>
+
+            {/* 좌하단 칠링 존 (핑크 영역) */}
+            <rect
+              x="101"
+              y="385"
+              width="209"
+              height="220"
+              fill="#f3dfe2"
+            />
+            <text
+              x="212"
+              y="498"
+              fill="#4a1921"
+              fontSize="16"
+              fontWeight="800"
+              textAnchor="middle"
+              fontFamily="sans-serif"
+            >
+              칠링 존
+            </text>
+
+            {/* 우상단 코너 빈 박스 & 좌하단 코너 빈 박스 (원본 도면 동일) */}
+            <rect
+              x="850"
+              y="140"
+              width="70"
+              height="55"
+              fill="#fcfaf8"
+              stroke="#8b303e"
+              strokeWidth="1.5"
+            />
+            <rect
+              x="100"
+              y="605"
+              width="22"
+              height="55"
+              fill="#fcfaf8"
+              stroke="#8b303e"
+              strokeWidth="1.5"
+            />
+
+            {/* 프로그램 입구 표시 (상단) */}
+            <g fill="#6d1d29" textAnchor="middle" fontFamily="sans-serif">
+              <polygon points="663,144 657,154 669,154" />
+              <text x="688" y="168" fontSize="11" fontWeight="700">
+                프로그램 입구
+              </text>
+            </g>
+
+            {/* 하단 출구 / 입구 표시 */}
+            <g fill="#6d1d29" textAnchor="middle" fontFamily="sans-serif">
+              {/* 출구 ▼ */}
+              <polygon points="755,638 748,626 762,626" />
+              <text x="755" y="654" fontSize="12" fontWeight="800">
+                출구
+              </text>
+
+              {/* 입구 ▲ */}
+              <polygon points="822,625 815,637 829,637" />
+              <text x="822" y="654" fontSize="12" fontWeight="800">
+                입구
+              </text>
+            </g>
+
+            {/* 71개 전체 부스 렌더링 */}
+            {booths.map((booth) => {
+              const isSelected = booth.id === selectedBoothId;
+              const isHovered = booth.id === hoveredBoothId;
+              const matched = isBoothMatched(booth);
+
+              const hasSoldOut = booth.bottles.some(
+                (b) => statuses[b.id]?.isSoldOut
+              );
+              const hasActivity = booth.bottles.some(
+                (b) =>
+                  (statuses[b.id]?.soldOutCount ?? 0) > 0 ||
+                  (statuses[b.id]?.ratingCount ?? 0) > 0
+              );
+
+              const fill = isSelected
+                ? "#8b303e"
+                : isHovered
+                ? "#f5d0c5"
+                : !matched
+                ? "#f1eeec"
+                : "#fcfaf8";
+
+              const textFill = isSelected
+                ? "#ffffff"
+                : !matched
+                ? "#b8b0ac"
+                : "#2b181b";
+
+              const cx = booth.rect.x + booth.rect.w / 2;
+              const cy = booth.rect.y + booth.rect.h / 2;
+
+              return (
+                <g
+                  key={booth.id}
+                  onClick={() => onSelectBooth(booth.id)}
+                  onMouseEnter={() => setHoveredBoothId(booth.id)}
+                  onMouseLeave={() => setHoveredBoothId(null)}
+                  className="cursor-pointer transition-opacity"
+                >
+                  <rect
+                    x={booth.rect.x}
+                    y={booth.rect.y}
+                    width={booth.rect.w}
+                    height={booth.rect.h}
+                    fill={fill}
+                    stroke={isSelected ? "#f59e0b" : "#8b303e"}
+                    strokeWidth={isSelected ? "2.6" : "1.5"}
+                  />
+
+                  <text
+                    x={cx}
+                    y={cy + 4}
+                    fill={textFill}
+                    fontSize="11.5"
+                    fontWeight="800"
+                    textAnchor="middle"
+                    fontFamily="sans-serif"
+                  >
+                    {booth.code}
+                  </text>
+
+                  {/* 매진 또는 평점/투표 활성 배지 점 */}
+                  {hasSoldOut ? (
+                    <circle
+                      cx={booth.rect.x + booth.rect.w - 6}
+                      cy={booth.rect.y + 6}
+                      r="3.5"
+                      fill="#e11d48"
+                    />
+                  ) : hasActivity ? (
+                    <circle
+                      cx={booth.rect.x + booth.rect.w - 6}
+                      cy={booth.rect.y + 6}
+                      r="3"
+                      fill="#f59e0b"
+                    />
+                  ) : null}
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+      </div>
+
+      {/* 현재 선택/호버된 부스 요약 바 */}
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/20 bg-stone-900/90 px-3.5 py-2.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-md bg-[#8b303e] px-2 py-0.5 text-xs font-extrabold text-white">
+            {previewBooth.code}
+          </span>
+          <span className="text-sm font-bold text-amber-100">
+            {previewBooth.name}
+          </span>
+          <span className="text-xs text-stone-400">
+            {previewBooth.nameEn}
+          </span>
+        </div>
+        <div className="flex items-center gap-3 text-[11px] text-stone-400">
+          <span className="inline-flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-rose-600" /> 매진 보틀 있음
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-amber-500" /> 평점/제안 진행중
+          </span>
+        </div>
       </div>
     </section>
   );

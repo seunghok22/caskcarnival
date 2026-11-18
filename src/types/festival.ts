@@ -1,9 +1,11 @@
+export type BoothZone = "I" | "A" | "B" | "C" | "D" | "E" | "F" | "G";
+
 export interface TastingItem {
   id: string;
   name: string;
   abv: string;
   note: string;
-  priceLabel: string; // 예: "무료 시음" 또는 "5,000원 (15ml)"
+  priceLabel: string;
 }
 
 export interface BottleItem {
@@ -19,12 +21,16 @@ export interface BottleItem {
 export interface Booth {
   id: string;
   code: string;
+  zone: BoothZone;
   name: string;
+  nameEn: string;
   category: string;
   description: string;
-  mapPosition: {
-    x: number; // 0 ~ 100 (%)
-    y: number; // 0 ~ 100 (%)
+  rect: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
   };
   tastings: TastingItem[];
   bottles: BottleItem[];
