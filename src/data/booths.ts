@@ -1016,3 +1016,8 @@ export const BOOTHS: Booth[] = RAW_BOOTHS.map((raw) => {
 export const ALL_BOTTLE_IDS = BOOTHS.flatMap((booth) =>
   booth.bottles.map((bottle) => bottle.id)
 );
+
+export const ALL_ITEM_IDS = BOOTHS.flatMap((booth) => [
+  ...booth.tastings.map((tasting) => tasting.id),
+  ...booth.bottles.map((bottle) => bottle.id),
+]);

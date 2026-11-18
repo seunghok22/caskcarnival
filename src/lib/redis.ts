@@ -8,10 +8,14 @@ export const SOLD_OUT_THRESHOLD = 20;
 const RELAXED_IP_LIMIT_PER_MIN = 300;
 const REVIEW_LOCK_TTL_SECONDS = 60 * 60 * 24 * 7; // 7일
 
+interface StoredReview extends ReviewItem {
+  authorUid?: string;
+}
+
 interface MemoryStore {
   soldOutVoters: Map<string, Set<string>>;
   ratingStats: Map<string, { sum: number; count: number }>;
-  reviews: Map<string, ReviewItem[]>;
+  reviews: Map<string, StoredReview[]>;
   reviewLocks: Set<string>;
   rateLimits: Map<string, { count: number; expiresAt: number }>;
 }
@@ -47,6 +51,35 @@ if (!redis && process.env.NODE_ENV !== "production") {
   console.warn(
     "[caskcarnival] UPSTASH_REDIS_REST_URL/TOKEN 미설정: 로컬 메모리 폴백 모드로 동작합니다."
   );
+}
+
+function toPublicReviews(
+  rawReviews: unknown[],
+  uid: string | null
+): ReviewItem[] {
+  const result: ReviewItem[] = [];
+  for (const item of rawReviews) {
+    let parsed: StoredReview | null = null;
+    if (typeof item === "string") {
+      try {
+        parsed = JSON.parse(item) as StoredReview;
+      } catch {
+        parsed = null;
+      }
+    } else if (item && typeof item === "object") {
+      parsed = item as StoredReview;
+    }
+    if (!parsed) continue;
+
+    result.push({
+      id: parsed.id,
+      rating: parsed.rating,
+      comment: parsed.comment,
+      createdAt: parsed.createdAt,
+      isMine: Boolean(uid && parsed.authorUid && parsed.authorUid === uid),
+    });
+  }
+  return result;
 }
 
 /**
@@ -85,7 +118,7 @@ export async function getBottleStatus(
     const voters = store.soldOutVoters.get(bottleId);
     const soldOutCount = voters ? voters.size : 0;
     const rating = store.ratingStats.get(bottleId) ?? { sum: 0, count: 0 };
-    const reviews = store.reviews.get(bottleId) ?? [];
+    const storedReviews = store.reviews.get(bottleId) ?? [];
 
     return {
       bottleId,
@@ -94,7 +127,7 @@ export async function getBottleStatus(
       ratingAvg:
         rating.count > 0 ? Number((rating.sum / rating.count).toFixed(1)) : 0,
       ratingCount: rating.count,
-      reviews,
+      reviews: toPublicReviews(storedReviews, uid),
       hasVotedSoldOut: uid ? Boolean(voters?.has(uid)) : false,
       hasReviewed: uid ? store.reviewLocks.has(`${bottleId}:${uid}`) : false,
     };
@@ -121,19 +154,6 @@ export async function getBottleStatus(
   const count = Number(ratingObj.count ?? 0);
   const rawReviews = (results[2] as unknown[]) ?? [];
 
-  const reviews: ReviewItem[] = rawReviews
-    .map((item) => {
-      if (typeof item === "string") {
-        try {
-          return JSON.parse(item) as ReviewItem;
-        } catch {
-          return null;
-        }
-      }
-      return item as ReviewItem;
-    })
-    .filter((item): item is ReviewItem => item !== null);
-
   const hasVotedSoldOut = uid ? Number(results[3] ?? 0) === 1 : false;
   const hasReviewed = uid ? Number(results[4] ?? 0) === 1 : false;
 
@@ -143,7 +163,7 @@ export async function getBottleStatus(
     isSoldOut: soldOutCount >= SOLD_OUT_THRESHOLD,
     ratingAvg: count > 0 ? Number((sum / count).toFixed(1)) : 0,
     ratingCount: count,
-    reviews,
+    reviews: toPublicReviews(rawReviews, uid),
     hasVotedSoldOut,
     hasReviewed,
   };
@@ -162,7 +182,6 @@ export async function getAllBottleStatuses(
     return Object.fromEntries(entries);
   }
 
-  // Upstash 파이프라인을 사용해 다수 보틀 상태를 한 번의 HTTP 요청으로 조회
   const pipeline = redis.pipeline();
   for (const bottleId of bottleIds) {
     pipeline.scard(`soldout:voters:${bottleId}`);
@@ -190,19 +209,6 @@ export async function getAllBottleStatuses(
     const count = Number(ratingObj.count ?? 0);
     const rawReviews = (results[base + 2] as unknown[]) ?? [];
 
-    const reviews: ReviewItem[] = rawReviews
-      .map((item) => {
-        if (typeof item === "string") {
-          try {
-            return JSON.parse(item) as ReviewItem;
-          } catch {
-            return null;
-          }
-        }
-        return item as ReviewItem;
-      })
-      .filter((item): item is ReviewItem => item !== null);
-
     const hasVotedSoldOut = uid ? Number(results[base + 3] ?? 0) === 1 : false;
     const hasReviewed = uid ? Number(results[base + 4] ?? 0) === 1 : false;
 
@@ -212,7 +218,7 @@ export async function getAllBottleStatuses(
       isSoldOut: soldOutCount >= SOLD_OUT_THRESHOLD,
       ratingAvg: count > 0 ? Number((sum / count).toFixed(1)) : 0,
       ratingCount: count,
-      reviews,
+      reviews: toPublicReviews(rawReviews, uid),
       hasVotedSoldOut,
       hasReviewed,
     };
@@ -255,11 +261,12 @@ export async function addBottleReview(
   rating: number,
   comment: string
 ): Promise<{ alreadyReviewed: boolean; status: BottleDynamicStatus }> {
-  const review: ReviewItem = {
+  const review: StoredReview = {
     id: crypto.randomUUID(),
     rating,
     comment,
     createdAt: new Date().toISOString(),
+    authorUid: uid,
   };
 
   if (!redis) {
@@ -288,7 +295,6 @@ export async function addBottleReview(
     };
   }
 
-  // NX 옵션으로 브라우저(HttpOnly 쿠키) 기준 중복 리뷰 원자적 차단
   const lockAcquired = await redis.set(`review:lock:${bottleId}:${uid}`, "1", {
     nx: true,
     ex: REVIEW_LOCK_TTL_SECONDS,
@@ -310,6 +316,79 @@ export async function addBottleReview(
 
   return {
     alreadyReviewed: false,
+    status: await getBottleStatus(bottleId, uid),
+  };
+}
+
+export async function deleteBottleReview(
+  bottleId: string,
+  uid: string
+): Promise<{ deleted: boolean; status: BottleDynamicStatus }> {
+  if (!redis) {
+    const store = getMemoryStore();
+    const list = store.reviews.get(bottleId) ?? [];
+    const target = list.find((r) => r.authorUid === uid);
+    if (!target) {
+      store.reviewLocks.delete(`${bottleId}:${uid}`);
+      return {
+        deleted: false,
+        status: await getBottleStatus(bottleId, uid),
+      };
+    }
+
+    store.reviews.set(
+      bottleId,
+      list.filter((r) => r.id !== target.id)
+    );
+    store.reviewLocks.delete(`${bottleId}:${uid}`);
+
+    const prev = store.ratingStats.get(bottleId) ?? { sum: 0, count: 0 };
+    store.ratingStats.set(bottleId, {
+      sum: Math.max(0, prev.sum - target.rating),
+      count: Math.max(0, prev.count - 1),
+    });
+
+    return {
+      deleted: true,
+      status: await getBottleStatus(bottleId, uid),
+    };
+  }
+
+  const rawList = await redis.lrange<unknown>(`reviews:${bottleId}`, 0, 49);
+  let targetRaw: string | null = null;
+  let targetRating = 0;
+
+  for (const item of rawList) {
+    const rawStr = typeof item === "string" ? item : JSON.stringify(item);
+    try {
+      const parsed = JSON.parse(rawStr) as StoredReview;
+      if (parsed.authorUid === uid) {
+        targetRaw = rawStr;
+        targetRating = Number(parsed.rating ?? 0);
+        break;
+      }
+    } catch {
+      // ignore malformed item
+    }
+  }
+
+  if (!targetRaw) {
+    await redis.del(`review:lock:${bottleId}:${uid}`);
+    return {
+      deleted: false,
+      status: await getBottleStatus(bottleId, uid),
+    };
+  }
+
+  const pipeline = redis.pipeline();
+  pipeline.lrem(`reviews:${bottleId}`, 1, targetRaw);
+  pipeline.hincrby(`rating:${bottleId}`, "sum", -targetRating);
+  pipeline.hincrby(`rating:${bottleId}`, "count", -1);
+  pipeline.del(`review:lock:${bottleId}:${uid}`);
+  await pipeline.exec();
+
+  return {
+    deleted: true,
     status: await getBottleStatus(bottleId, uid),
   };
 }

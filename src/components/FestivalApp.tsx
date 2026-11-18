@@ -2,18 +2,26 @@
 
 import { useEffect, useState } from "react";
 import { BOOTHS } from "@/data/booths";
-import type { BottleDynamicStatus, BottleItem } from "@/types/festival";
+import type {
+  BottleDynamicStatus,
+  BottleItem,
+  TastingItem,
+} from "@/types/festival";
 import { BoothMap } from "./BoothMap";
 import { BoothDetail } from "./BoothDetail";
 import { BottleModal } from "./BottleModal";
 
+export type SelectedDetailItem =
+  | { kind: "bottle"; item: BottleItem }
+  | { kind: "tasting"; item: TastingItem };
+
 export function FestivalApp() {
-  const defaultBooth =
-    BOOTHS.find((b) => b.code === "A02") ?? BOOTHS[0];
+  const defaultBooth = BOOTHS.find((b) => b.code === "A02") ?? BOOTHS[0];
   const [selectedBoothId, setSelectedBoothId] = useState<string>(
     defaultBooth.id
   );
-  const [selectedBottle, setSelectedBottle] = useState<BottleItem | null>(null);
+  const [selectedDetail, setSelectedDetail] =
+    useState<SelectedDetailItem | null>(null);
   const [statuses, setStatuses] = useState<Record<string, BottleDynamicStatus>>(
     {}
   );
@@ -53,9 +61,6 @@ export function FestivalApp() {
           <h1 className="text-xl font-extrabold tracking-tight text-amber-100">
             Cask Carnival
           </h1>
-          <p className="text-xs text-stone-400">
-            전체 71개 부스 배치도 · 시음/판매 보틀 목록 · 실시간 매진 & 평점 공유
-          </p>
         </div>
         <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-300">
           LIVE
@@ -67,7 +72,6 @@ export function FestivalApp() {
         booths={BOOTHS}
         selectedBoothId={selectedBooth.id}
         onSelectBooth={setSelectedBoothId}
-        statuses={statuses}
       />
 
       {/* 2. 하단 부스 상세 & 번호순 전체 목록 */}
@@ -76,15 +80,20 @@ export function FestivalApp() {
         selectedBooth={selectedBooth}
         onSelectBooth={setSelectedBoothId}
         statuses={statuses}
-        onSelectBottle={setSelectedBottle}
+        onSelectBottle={(bottle) =>
+          setSelectedDetail({ kind: "bottle", item: bottle })
+        }
+        onSelectTasting={(tasting) =>
+          setSelectedDetail({ kind: "tasting", item: tasting })
+        }
       />
 
-      {/* 3. 보틀 상세 / 평점 / 한줄평 / 매진 제안 모달 */}
-      {selectedBottle && (
+      {/* 3. 시음/보틀 상세 / 평점 / 한줄평 / 매진 제안 모달 */}
+      {selectedDetail && (
         <BottleModal
-          bottle={selectedBottle}
-          status={statuses[selectedBottle.id]}
-          onClose={() => setSelectedBottle(null)}
+          detail={selectedDetail}
+          status={statuses[selectedDetail.item.id]}
+          onClose={() => setSelectedDetail(null)}
           onStatusUpdated={handleStatusUpdated}
         />
       )}

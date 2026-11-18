@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { ALL_BOTTLE_IDS } from "@/data/booths";
+import { ALL_ITEM_IDS } from "@/data/booths";
 import { attachUidCookie, getOrCreateClientUid } from "@/lib/identity";
 import { getAllBottleStatuses } from "@/lib/redis";
 
 export async function GET() {
   try {
     const { uid, isNew } = await getOrCreateClientUid();
-    const statuses = await getAllBottleStatuses(ALL_BOTTLE_IDS, uid);
+    const statuses = await getAllBottleStatuses(ALL_ITEM_IDS, uid);
     const res = NextResponse.json({ statuses });
     return attachUidCookie(res, uid, isNew);
   } catch (error) {

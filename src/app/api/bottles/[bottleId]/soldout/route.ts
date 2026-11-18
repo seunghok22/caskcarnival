@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ALL_BOTTLE_IDS } from "@/data/booths";
+import { ALL_ITEM_IDS } from "@/data/booths";
 import {
   attachUidCookie,
   getClientIp,
@@ -13,7 +13,7 @@ export async function POST(
 ) {
   try {
     const { bottleId } = await context.params;
-    if (!ALL_BOTTLE_IDS.includes(bottleId)) {
+    if (!ALL_ITEM_IDS.includes(bottleId)) {
       return NextResponse.json(
         { error: "존재하지 않는 보틀입니다." },
         { status: 404 }

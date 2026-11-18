@@ -6,6 +6,7 @@ export interface TastingItem {
   abv: string;
   note: string;
   priceLabel: string;
+  whiskybaseUrl?: string;
 }
 
 export interface BottleItem {
@@ -16,6 +17,7 @@ export interface BottleItem {
   volume: string;
   price: number;
   note?: string;
+  whiskybaseUrl?: string;
 }
 
 export interface Booth {
@@ -41,6 +43,7 @@ export interface ReviewItem {
   rating: number;
   comment: string;
   createdAt: string;
+  isMine?: boolean;
 }
 
 export interface BottleDynamicStatus {

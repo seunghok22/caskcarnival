@@ -2,13 +2,12 @@
 
 import { useState } from "react";
 import { Search, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
-import type { Booth, BoothZone, BottleDynamicStatus } from "@/types/festival";
+import type { Booth, BoothZone } from "@/types/festival";
 
 interface BoothMapProps {
   booths: Booth[];
   selectedBoothId: string;
   onSelectBooth: (boothId: string) => void;
-  statuses: Record<string, BottleDynamicStatus>;
 }
 
 const ZONE_FILTERS: { label: string; value: BoothZone | "ALL" }[] = [
@@ -27,7 +26,6 @@ export function BoothMap({
   booths,
   selectedBoothId,
   onSelectBooth,
-  statuses,
 }: BoothMapProps) {
   const [activeZone, setActiveZone] = useState<BoothZone | "ALL">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
@@ -311,27 +309,31 @@ export function BoothMap({
             {booths.map((booth) => {
               const isSelected = booth.id === selectedBoothId;
               const isHovered = booth.id === hoveredBoothId;
+              const hasActiveFilter =
+                normalizedQuery.length > 0 || activeZone !== "ALL";
               const matched = isBoothMatched(booth);
-
-              const hasSoldOut = booth.bottles.some(
-                (b) => statuses[b.id]?.isSoldOut
-              );
-              const hasActivity = booth.bottles.some(
-                (b) =>
-                  (statuses[b.id]?.soldOutCount ?? 0) > 0 ||
-                  (statuses[b.id]?.ratingCount ?? 0) > 0
-              );
+              const isHighlightedMatch = hasActiveFilter && matched;
 
               const fill = isSelected
                 ? "#8b303e"
                 : isHovered
                 ? "#f5d0c5"
+                : isHighlightedMatch
+                ? "#dcfce7"
                 : !matched
                 ? "#f1eeec"
                 : "#fcfaf8";
 
+              const stroke = isSelected
+                ? "#f59e0b"
+                : isHighlightedMatch
+                ? "#16a34a"
+                : "#8b303e";
+
               const textFill = isSelected
                 ? "#ffffff"
+                : isHighlightedMatch
+                ? "#14532d"
                 : !matched
                 ? "#b8b0ac"
                 : "#2b181b";
@@ -353,8 +355,8 @@ export function BoothMap({
                     width={booth.rect.w}
                     height={booth.rect.h}
                     fill={fill}
-                    stroke={isSelected ? "#f59e0b" : "#8b303e"}
-                    strokeWidth={isSelected ? "2.6" : "1.5"}
+                    stroke={stroke}
+                    strokeWidth={isSelected || isHighlightedMatch ? "2.4" : "1.5"}
                   />
 
                   <text
@@ -368,26 +370,52 @@ export function BoothMap({
                   >
                     {booth.code}
                   </text>
-
-                  {/* 매진 또는 평점/투표 활성 배지 점 */}
-                  {hasSoldOut ? (
-                    <circle
-                      cx={booth.rect.x + booth.rect.w - 6}
-                      cy={booth.rect.y + 6}
-                      r="3.5"
-                      fill="#e11d48"
-                    />
-                  ) : hasActivity ? (
-                    <circle
-                      cx={booth.rect.x + booth.rect.w - 6}
-                      cy={booth.rect.y + 6}
-                      r="3"
-                      fill="#f59e0b"
-                    />
-                  ) : null}
                 </g>
               );
             })}
+
+            {/* 마우스 호버 시 부스명 툴팁 */}
+            {hoveredBooth &&
+              (() => {
+                const label = `${hoveredBooth.code} · ${hoveredBooth.name}`;
+                const boxWidth = Math.max(96, label.length * 10.5 + 24);
+                const boxHeight = 28;
+                const centerX = hoveredBooth.rect.x + hoveredBooth.rect.w / 2;
+                const clampedX = Math.min(
+                  Math.max(centerX - boxWidth / 2, 12),
+                  960 - boxWidth - 12
+                );
+                const showBelow = hoveredBooth.rect.y < 150;
+                const boxY = showBelow
+                  ? hoveredBooth.rect.y + hoveredBooth.rect.h + 8
+                  : hoveredBooth.rect.y - boxHeight - 8;
+
+                return (
+                  <g className="pointer-events-none">
+                    <rect
+                      x={clampedX}
+                      y={boxY}
+                      width={boxWidth}
+                      height={boxHeight}
+                      rx={8}
+                      fill="#1c1714"
+                      stroke="#f59e0b"
+                      strokeWidth="1.5"
+                    />
+                    <text
+                      x={clampedX + boxWidth / 2}
+                      y={boxY + 18}
+                      fill="#fef3c7"
+                      fontSize="12"
+                      fontWeight="700"
+                      textAnchor="middle"
+                      fontFamily="sans-serif"
+                    >
+                      {label}
+                    </text>
+                  </g>
+                );
+              })()}
           </svg>
         </div>
       </div>
@@ -403,14 +431,6 @@ export function BoothMap({
           </span>
           <span className="text-xs text-stone-400">
             {previewBooth.nameEn}
-          </span>
-        </div>
-        <div className="flex items-center gap-3 text-[11px] text-stone-400">
-          <span className="inline-flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-rose-600" /> 매진 보틀 있음
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-amber-500" /> 평점/제안 진행중
           </span>
         </div>
       </div>

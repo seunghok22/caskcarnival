@@ -9,7 +9,12 @@ import {
   ChevronRight,
   ListFilter,
 } from "lucide-react";
-import type { Booth, BottleDynamicStatus, BottleItem } from "@/types/festival";
+import type {
+  Booth,
+  BottleDynamicStatus,
+  BottleItem,
+  TastingItem,
+} from "@/types/festival";
 
 interface BoothDetailProps {
   booths: Booth[];
@@ -17,6 +22,7 @@ interface BoothDetailProps {
   onSelectBooth: (boothId: string) => void;
   statuses: Record<string, BottleDynamicStatus>;
   onSelectBottle: (bottle: BottleItem) => void;
+  onSelectTasting: (tasting: TastingItem) => void;
 }
 
 export function BoothDetail({
@@ -25,6 +31,7 @@ export function BoothDetail({
   onSelectBooth,
   statuses,
   onSelectBottle,
+  onSelectTasting,
 }: BoothDetailProps) {
   const [showFullDirectory, setShowFullDirectory] = useState(true);
 
@@ -57,30 +64,76 @@ export function BoothDetail({
 
         {/* 1. 시음 목록 */}
         <div className="mb-6">
-          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-amber-200">
-            <Wine className="h-4 w-4 text-amber-400" />
-            <span>시음 목록 ({selectedBooth.tastings.length})</span>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-sm font-semibold text-amber-200">
+              <Wine className="h-4 w-4 text-amber-400" />
+              <span>시음 목록 ({selectedBooth.tastings.length})</span>
+            </div>
+            <span className="text-[11px] text-amber-300/90">
+              항목을 클릭하면 상세 정보 및 평점·한줄평을 남길 수 있습니다
+            </span>
           </div>
+
           <div className="grid gap-2.5 sm:grid-cols-2">
-            {selectedBooth.tastings.map((tasting) => (
-              <div
-                key={tasting.id}
-                className="rounded-xl border border-stone-800/90 bg-stone-900/50 p-3"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="font-medium text-stone-100">
-                    {tasting.name}
+            {selectedBooth.tastings.map((tasting) => {
+              const st = statuses[tasting.id];
+              const isSoldOut = st?.isSoldOut ?? false;
+              const soldOutCount = st?.soldOutCount ?? 0;
+              const ratingAvg = st?.ratingAvg ?? 0;
+              const ratingCount = st?.ratingCount ?? 0;
+
+              return (
+                <button
+                  key={tasting.id}
+                  type="button"
+                  onClick={() => onSelectTasting(tasting)}
+                  className={`group flex flex-col justify-between rounded-xl border p-3.5 text-left transition ${
+                    isSoldOut
+                      ? "border-rose-900/60 bg-rose-950/20 opacity-85 hover:border-rose-700"
+                      : "border-stone-800/90 bg-stone-900/50 hover:border-amber-500/60 hover:bg-stone-900"
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="font-medium text-stone-100 group-hover:text-amber-200">
+                        {tasting.name}
+                      </div>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-stone-500 group-hover:text-amber-300" />
+                    </div>
+                    <div className="mt-1 text-xs text-stone-400">
+                      {tasting.abv !== "-" ? `ABV ${tasting.abv} · ` : ""}
+                      {tasting.note}
+                    </div>
                   </div>
-                  <span className="shrink-0 rounded bg-stone-800 px-2 py-0.5 text-[11px] font-medium text-amber-300">
-                    {tasting.priceLabel}
-                  </span>
-                </div>
-                <div className="mt-1 text-xs text-stone-400">
-                  {tasting.abv !== "-" ? `ABV ${tasting.abv} · ` : ""}
-                  {tasting.note}
-                </div>
-              </div>
-            ))}
+
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-stone-800/80 pt-2.5">
+                    <span className="rounded bg-stone-800 px-2 py-0.5 text-[11px] font-medium text-amber-300">
+                      {tasting.priceLabel}
+                    </span>
+
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="inline-flex items-center gap-1 text-amber-300">
+                        <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                        {ratingCount > 0
+                          ? `${ratingAvg} (${ratingCount})`
+                          : "평점 없음"}
+                      </span>
+
+                      {isSoldOut ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/20 px-2 py-0.5 font-semibold text-rose-300">
+                          <AlertTriangle className="h-3 w-3" />
+                          매진 확정
+                        </span>
+                      ) : soldOutCount > 0 ? (
+                        <span className="rounded-full bg-stone-800 px-2 py-0.5 text-[11px] text-stone-300">
+                          매진 제안 {soldOutCount}/20
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -92,7 +145,7 @@ export function BoothDetail({
               <span>판매 보틀 목록 ({selectedBooth.bottles.length})</span>
             </div>
             <span className="text-[11px] text-amber-300/90">
-              보틀을 클릭하면 평점·한줄평 등록 및 매진 제안(20명 이상 시 적용)이 가능합니다
+              보틀을 클릭하면 평점·한줄평 등록 및 매진 제안이 가능합니다
             </span>
           </div>
 

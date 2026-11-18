@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
-import { ALL_BOTTLE_IDS } from "@/data/booths";
+import { ALL_ITEM_IDS } from "@/data/booths";
 import {
   attachUidCookie,
   getClientIp,
   getOrCreateClientUid,
 } from "@/lib/identity";
-import { addBottleReview, checkRelaxedIpRateLimit } from "@/lib/redis";
+import {
+  addBottleReview,
+  checkRelaxedIpRateLimit,
+  deleteBottleReview,
+} from "@/lib/redis";
 
 export async function POST(
   req: Request,
@@ -13,9 +17,9 @@ export async function POST(
 ) {
   try {
     const { bottleId } = await context.params;
-    if (!ALL_BOTTLE_IDS.includes(bottleId)) {
+    if (!ALL_ITEM_IDS.includes(bottleId)) {
       return NextResponse.json(
-        { error: "존재하지 않는 보틀입니다." },
+        { error: "존재하지 않는 항목입니다." },
         { status: 404 }
       );
     }
@@ -62,7 +66,7 @@ export async function POST(
 
     if (alreadyReviewed) {
       const res = NextResponse.json(
-        { error: "이미 이 보틀에 평점 및 한줄평을 남기셨습니다.", status },
+        { error: "이미 평점 및 한줄평을 남기셨습니다.", status },
         { status: 409 }
       );
       return attachUidCookie(res, uid, isNew);
@@ -74,6 +78,50 @@ export async function POST(
     console.error("POST /api/bottles/[bottleId]/review error:", error);
     return NextResponse.json(
       { error: "평점 등록 중 오류가 발생했습니다." },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  _req: Request,
+  context: { params: Promise<{ bottleId: string }> }
+) {
+  try {
+    const { bottleId } = await context.params;
+    if (!ALL_ITEM_IDS.includes(bottleId)) {
+      return NextResponse.json(
+        { error: "존재하지 않는 항목입니다." },
+        { status: 404 }
+      );
+    }
+
+    const ip = await getClientIp();
+    const allowed = await checkRelaxedIpRateLimit(ip);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요." },
+        { status: 429 }
+      );
+    }
+
+    const { uid, isNew } = await getOrCreateClientUid();
+    const { deleted, status } = await deleteBottleReview(bottleId, uid);
+
+    if (!deleted) {
+      const res = NextResponse.json(
+        { error: "삭제할 본인 평가가 없습니다.", status },
+        { status: 404 }
+      );
+      return attachUidCookie(res, uid, isNew);
+    }
+
+    const res = NextResponse.json({ status });
+    return attachUidCookie(res, uid, isNew);
+  } catch (error) {
+    console.error("DELETE /api/bottles/[bottleId]/review error:", error);
+    return NextResponse.json(
+      { error: "평가 삭제 중 오류가 발생했습니다." },
       { status: 500 }
     );
   }
