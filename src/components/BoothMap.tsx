@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Search, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 import type { Booth, BoothZone } from "@/types/festival";
-import { getReviewKey } from "@/data/booths";
 
 interface BoothMapProps {
   booths: Booth[];
@@ -342,8 +341,8 @@ export function BoothMap({
                 : "#2b181b";
 
               const hasWanted =
-                booth.tastings.some((t) => wantedKeys.has(getReviewKey(t.id))) ||
-                booth.bottles.some((b) => wantedKeys.has(getReviewKey(b.id)));
+                booth.tastings.some((t) => wantedKeys.has(t.id)) ||
+                booth.bottles.some((b) => wantedKeys.has(b.id));
 
               const cx = booth.rect.x + booth.rect.w / 2;
               const cy = booth.rect.y + booth.rect.h / 2;

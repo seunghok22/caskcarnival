@@ -10,7 +10,6 @@ import {
   ListFilter,
   Bookmark,
 } from "lucide-react";
-import { getReviewKey } from "@/data/booths";
 import type {
   Booth,
   BottleDynamicStatus,
@@ -240,7 +239,7 @@ export function BoothDetail({
                 const soldOutCount = st?.soldOutCount ?? 0;
                 const ratingAvg = st?.ratingAvg ?? 0;
                 const ratingCount = st?.ratingCount ?? 0;
-                const isWanted = wantedKeys.has(getReviewKey(tasting.id));
+                const isWanted = wantedKeys.has(tasting.id);
 
                 return (
                   <div
@@ -336,7 +335,7 @@ export function BoothDetail({
                 const soldOutCount = st?.soldOutCount ?? 0;
                 const ratingAvg = st?.ratingAvg ?? 0;
                 const ratingCount = st?.ratingCount ?? 0;
-                const isWanted = wantedKeys.has(getReviewKey(bottle.id));
+                const isWanted = wantedKeys.has(bottle.id);
 
                 return (
                   <div
@@ -581,7 +580,7 @@ export function BoothDetail({
                   const soldOutCount = st?.soldOutCount ?? 0;
                   const ratingAvg = st?.ratingAvg ?? 0;
                   const ratingCount = st?.ratingCount ?? 0;
-                  const isWanted = wantedKeys.has(getReviewKey(entry.item.id));
+                  const isWanted = wantedKeys.has(entry.item.id);
 
                   return (
                     <div

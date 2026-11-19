@@ -20,6 +20,8 @@ interface BottleModalProps {
   status?: BottleDynamicStatus;
   isWanted: boolean;
   onToggleWanted: () => void;
+  onReviewSubmitted: () => void;
+  onReviewDeleted: () => void;
   onClose: () => void;
   onStatusUpdated: (updated: BottleDynamicStatus) => void;
 }
@@ -31,6 +33,8 @@ export function BottleModal({
   status,
   isWanted,
   onToggleWanted,
+  onReviewSubmitted,
+  onReviewDeleted,
   onClose,
   onStatusUpdated,
 }: BottleModalProps) {
@@ -182,6 +186,7 @@ export function BottleModal({
       }
 
       localStorage.setItem(localReviewKey, "1");
+      onReviewSubmitted();
       setComment("");
       setFeedback({
         type: "success",
@@ -215,6 +220,7 @@ export function BottleModal({
       if (!res.ok) {
         if (res.status === 404) {
           localStorage.removeItem(localReviewKey);
+          onReviewDeleted();
           setFeedback({
             type: "success",
             text: "평가 잠금이 해제되었습니다. 다시 작성할 수 있습니다.",
@@ -229,6 +235,7 @@ export function BottleModal({
       }
 
       localStorage.removeItem(localReviewKey);
+      onReviewDeleted();
       setFeedback({
         type: "success",
         text: "내가 남긴 평가가 삭제되었습니다.",
@@ -292,7 +299,7 @@ export function BottleModal({
             <div className="text-[10px] font-medium text-stone-400">
               캐스크 정보
             </div>
-            <div className="mt-0.5 truncate text-xs font-semibold text-stone-100">
+            <div className="mt-0.5 break-words text-xs font-semibold text-stone-100">
               {item.cask || "-"}
             </div>
           </div>
