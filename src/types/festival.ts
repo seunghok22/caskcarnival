@@ -3,6 +3,7 @@ export type BoothZone = "I" | "A" | "B" | "C" | "D" | "E" | "F" | "G";
 export interface TastingItem {
   id: string;
   name: string;
+  distillery?: string;
   abv: string;
   note: string;
   priceLabel: string;
