@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BOOTHS } from "@/data/booths";
+import { BOOTHS, getReviewKey, getSharedReviewItemIds } from "@/data/booths";
 import type {
   BottleDynamicStatus,
   BottleItem,
@@ -15,6 +15,8 @@ export type SelectedDetailItem =
   | { kind: "bottle"; item: BottleItem }
   | { kind: "tasting"; item: TastingItem };
 
+const WANTED_STORAGE_KEY = "cask_wanted";
+
 export function FestivalApp() {
   const defaultBooth = BOOTHS.find((b) => b.code === "A02") ?? BOOTHS[0];
   const [selectedBoothId, setSelectedBoothId] = useState<string>(
@@ -25,6 +27,21 @@ export function FestivalApp() {
   const [statuses, setStatuses] = useState<Record<string, BottleDynamicStatus>>(
     {}
   );
+  const [wantedKeys, setWantedKeys] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(WANTED_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          setWantedKeys(new Set(parsed.filter((v) => typeof v === "string")));
+        }
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -47,11 +64,50 @@ export function FestivalApp() {
   const selectedBooth =
     BOOTHS.find((b) => b.id === selectedBoothId) ?? defaultBooth;
 
+  function handleToggleWanted(itemId: string) {
+    const key = getReviewKey(itemId);
+    setWantedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      try {
+        localStorage.setItem(
+          WANTED_STORAGE_KEY,
+          JSON.stringify(Array.from(next))
+        );
+      } catch {
+        // ignore storage errors
+      }
+      return next;
+    });
+  }
+
   function handleStatusUpdated(updated: BottleDynamicStatus) {
-    setStatuses((prev) => ({
-      ...prev,
-      [updated.bottleId]: updated,
-    }));
+    const sharedIds = getSharedReviewItemIds(updated.bottleId);
+    setStatuses((prev) => {
+      const next: Record<string, BottleDynamicStatus> = {
+        ...prev,
+        [updated.bottleId]: updated,
+      };
+      for (const siblingId of sharedIds) {
+        if (siblingId === updated.bottleId) continue;
+        const existing = prev[siblingId];
+        next[siblingId] = {
+          bottleId: siblingId,
+          soldOutCount: existing?.soldOutCount ?? 0,
+          isSoldOut: existing?.isSoldOut ?? false,
+          hasVotedSoldOut: existing?.hasVotedSoldOut ?? false,
+          ratingAvg: updated.ratingAvg,
+          ratingCount: updated.ratingCount,
+          reviews: updated.reviews,
+          hasReviewed: updated.hasReviewed,
+        };
+      }
+      return next;
+    });
   }
 
   return (
@@ -72,6 +128,7 @@ export function FestivalApp() {
         booths={BOOTHS}
         selectedBoothId={selectedBooth.id}
         onSelectBooth={setSelectedBoothId}
+        wantedKeys={wantedKeys}
       />
 
       {/* 2. 하단 부스 상세 & 번호순 전체 목록 */}
@@ -80,6 +137,8 @@ export function FestivalApp() {
         selectedBooth={selectedBooth}
         onSelectBooth={setSelectedBoothId}
         statuses={statuses}
+        wantedKeys={wantedKeys}
+        onToggleWanted={handleToggleWanted}
         onSelectBottle={(bottle) =>
           setSelectedDetail({ kind: "bottle", item: bottle })
         }
@@ -93,6 +152,8 @@ export function FestivalApp() {
         <BottleModal
           detail={selectedDetail}
           status={statuses[selectedDetail.item.id]}
+          isWanted={wantedKeys.has(getReviewKey(selectedDetail.item.id))}
+          onToggleWanted={() => handleToggleWanted(selectedDetail.item.id)}
           onClose={() => setSelectedDetail(null)}
           onStatusUpdated={handleStatusUpdated}
         />

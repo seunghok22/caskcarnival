@@ -9,13 +9,17 @@ import {
   MessageSquare,
   ExternalLink,
   Trash2,
+  Bookmark,
 } from "lucide-react";
 import type { BottleDynamicStatus } from "@/types/festival";
+import { getReviewKey } from "@/data/booths";
 import type { SelectedDetailItem } from "./FestivalApp";
 
 interface BottleModalProps {
   detail: SelectedDetailItem;
   status?: BottleDynamicStatus;
+  isWanted: boolean;
+  onToggleWanted: () => void;
   onClose: () => void;
   onStatusUpdated: (updated: BottleDynamicStatus) => void;
 }
@@ -25,6 +29,8 @@ const SOLD_OUT_THRESHOLD = 20;
 export function BottleModal({
   detail,
   status,
+  isWanted,
+  onToggleWanted,
   onClose,
   onStatusUpdated,
 }: BottleModalProps) {
@@ -39,8 +45,9 @@ export function BottleModal({
     text: string;
   } | null>(null);
 
+  const reviewKey = getReviewKey(item.id);
   const localSoldOutKey = `cask_soldout_${item.id}`;
-  const localReviewKey = `cask_review_${item.id}`;
+  const localReviewKey = `cask_review_${reviewKey}`;
   const hasLocalSoldOut =
     typeof window !== "undefined" && localStorage.getItem(localSoldOutKey) === "1";
   const hasLocalReview =
@@ -87,6 +94,52 @@ export function BottleModal({
       setFeedback({
         type: "success",
         text: "매진 제안이 반영되었습니다.",
+      });
+    } catch {
+      setFeedback({
+        type: "error",
+        text: "네트워크 오류가 발생했습니다.",
+      });
+    } finally {
+      setSubmittingSoldOut(false);
+    }
+  }
+
+  async function handleCancelSoldOutVote() {
+    if (!hasVotedSoldOut || submittingSoldOut) return;
+    setSubmittingSoldOut(true);
+    setFeedback(null);
+
+    try {
+      const res = await fetch(`/api/bottles/${item.id}/soldout`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+
+      if (data.status) {
+        onStatusUpdated(data.status);
+      }
+
+      if (!res.ok) {
+        if (res.status === 404) {
+          localStorage.removeItem(localSoldOutKey);
+          setFeedback({
+            type: "success",
+            text: "매진 제안 상태가 초기화되었습니다.",
+          });
+          return;
+        }
+        setFeedback({
+          type: "error",
+          text: data.error ?? "매진 제안 취소에 실패했습니다.",
+        });
+        return;
+      }
+
+      localStorage.removeItem(localSoldOutKey);
+      setFeedback({
+        type: "success",
+        text: "매진 제안이 취소되었습니다.",
       });
     } catch {
       setFeedback({
@@ -261,8 +314,8 @@ export function BottleModal({
           </div>
         </div>
 
-        {/* Whiskybase 이동 버튼 (whiskybaseUrl이 있을 때만 활성화) */}
-        <div className="mt-3">
+        {/* Whiskybase 이동 버튼 + wanted 북마크 버튼 */}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           {whiskybaseHref ? (
             <a
               href={whiskybaseHref}
@@ -283,6 +336,23 @@ export function BottleModal({
               <ExternalLink className="h-3.5 w-3.5" />
             </button>
           )}
+
+          <button
+            type="button"
+            onClick={onToggleWanted}
+            className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+              isWanted
+                ? "border-amber-400 bg-amber-500/20 text-amber-200"
+                : "border-stone-700 bg-stone-900/80 text-stone-300 hover:border-amber-500/50 hover:text-amber-200"
+            }`}
+          >
+            <Bookmark
+              className={`h-3.5 w-3.5 ${
+                isWanted ? "fill-amber-400 text-amber-400" : "text-stone-400"
+              }`}
+            />
+            <span>wanted</span>
+          </button>
         </div>
 
         {feedback && (
@@ -326,29 +396,41 @@ export function BottleModal({
             />
           </div>
 
-          <button
-            type="button"
-            disabled={hasVotedSoldOut || submittingSoldOut || isSoldOut}
-            onClick={handleSoldOutVote}
-            className={`mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-semibold transition ${
-              hasVotedSoldOut || isSoldOut
-                ? "cursor-not-allowed bg-stone-800 text-stone-400"
-                : "bg-rose-600/90 text-white hover:bg-rose-500"
-            }`}
-          >
-            {isSoldOut ? (
-              "매진 처리되었습니다"
-            ) : hasVotedSoldOut ? (
-              <>
-                <CheckCircle2 className="h-4 w-4" />
-                이미 매진 제안을 완료했습니다
-              </>
-            ) : submittingSoldOut ? (
-              "처리 중..."
-            ) : (
-              "매진 제안하기"
-            )}
-          </button>
+          {hasVotedSoldOut ? (
+            <div className="mt-3 flex flex-col gap-2">
+              <div className="flex items-center justify-center gap-1.5 rounded-xl bg-stone-800/80 py-2 text-xs font-medium text-stone-300">
+                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                {isSoldOut
+                  ? "매진 처리됨 (본인 매진 제안 포함)"
+                  : "매진 제안을 완료했습니다"}
+              </div>
+              <button
+                type="button"
+                disabled={submittingSoldOut}
+                onClick={handleCancelSoldOutVote}
+                className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-stone-700 bg-stone-900 py-2 text-xs font-semibold text-stone-200 transition hover:border-rose-500/60 hover:bg-rose-950/40 hover:text-rose-200 disabled:opacity-50"
+              >
+                {submittingSoldOut ? "취소 중..." : "내 매진 제안 취소하기"}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              disabled={submittingSoldOut || isSoldOut}
+              onClick={handleSoldOutVote}
+              className={`mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-semibold transition ${
+                isSoldOut
+                  ? "cursor-not-allowed bg-stone-800 text-stone-400"
+                  : "bg-rose-600/90 text-white hover:bg-rose-500"
+              }`}
+            >
+              {isSoldOut
+                ? "매진 처리되었습니다"
+                : submittingSoldOut
+                ? "처리 중..."
+                : "매진 제안하기"}
+            </button>
+          )}
         </div>
 
         {/* 평점 & 한줄평 작성 */}

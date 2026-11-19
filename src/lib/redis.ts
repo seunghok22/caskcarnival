@@ -1,4 +1,5 @@
 import { Redis } from "@upstash/redis";
+import { getReviewKey } from "@/data/booths";
 import type { BottleDynamicStatus, ReviewItem } from "@/types/festival";
 
 export const SOLD_OUT_THRESHOLD = 20;
@@ -113,12 +114,14 @@ export async function getBottleStatus(
   bottleId: string,
   uid: string | null
 ): Promise<BottleDynamicStatus> {
+  const reviewKey = getReviewKey(bottleId);
+
   if (!redis) {
     const store = getMemoryStore();
     const voters = store.soldOutVoters.get(bottleId);
     const soldOutCount = voters ? voters.size : 0;
-    const rating = store.ratingStats.get(bottleId) ?? { sum: 0, count: 0 };
-    const storedReviews = store.reviews.get(bottleId) ?? [];
+    const rating = store.ratingStats.get(reviewKey) ?? { sum: 0, count: 0 };
+    const storedReviews = store.reviews.get(reviewKey) ?? [];
 
     return {
       bottleId,
@@ -129,20 +132,20 @@ export async function getBottleStatus(
       ratingCount: rating.count,
       reviews: toPublicReviews(storedReviews, uid),
       hasVotedSoldOut: uid ? Boolean(voters?.has(uid)) : false,
-      hasReviewed: uid ? store.reviewLocks.has(`${bottleId}:${uid}`) : false,
+      hasReviewed: uid ? store.reviewLocks.has(`${reviewKey}:${uid}`) : false,
     };
   }
 
   const pipeline = redis.pipeline();
   pipeline.scard(`soldout:voters:${bottleId}`);
   pipeline.hgetall<{ sum?: number | string; count?: number | string }>(
-    `rating:${bottleId}`
+    `rating:${reviewKey}`
   );
-  pipeline.lrange<string>(`reviews:${bottleId}`, 0, 29);
+  pipeline.lrange<string>(`reviews:${reviewKey}`, 0, 29);
 
   if (uid) {
     pipeline.sismember(`soldout:voters:${bottleId}`, uid);
-    pipeline.exists(`review:lock:${bottleId}:${uid}`);
+    pipeline.exists(`review:lock:${reviewKey}:${uid}`);
   }
 
   const results = await pipeline.exec();
@@ -184,12 +187,13 @@ export async function getAllBottleStatuses(
 
   const pipeline = redis.pipeline();
   for (const bottleId of bottleIds) {
+    const reviewKey = getReviewKey(bottleId);
     pipeline.scard(`soldout:voters:${bottleId}`);
-    pipeline.hgetall(`rating:${bottleId}`);
-    pipeline.lrange(`reviews:${bottleId}`, 0, 19);
+    pipeline.hgetall(`rating:${reviewKey}`);
+    pipeline.lrange(`reviews:${reviewKey}`, 0, 19);
     if (uid) {
       pipeline.sismember(`soldout:voters:${bottleId}`, uid);
-      pipeline.exists(`review:lock:${bottleId}:${uid}`);
+      pipeline.exists(`review:lock:${reviewKey}:${uid}`);
     }
   }
 
@@ -255,12 +259,34 @@ export async function voteSoldOut(
   };
 }
 
+export async function cancelSoldOutVote(
+  bottleId: string,
+  uid: string
+): Promise<{ canceled: boolean; status: BottleDynamicStatus }> {
+  if (!redis) {
+    const store = getMemoryStore();
+    const voters = store.soldOutVoters.get(bottleId);
+    const canceled = voters ? voters.delete(uid) : false;
+    return {
+      canceled,
+      status: await getBottleStatus(bottleId, uid),
+    };
+  }
+
+  const removed = await redis.srem(`soldout:voters:${bottleId}`, uid);
+  return {
+    canceled: removed > 0,
+    status: await getBottleStatus(bottleId, uid),
+  };
+}
+
 export async function addBottleReview(
   bottleId: string,
   uid: string,
   rating: number,
   comment: string
 ): Promise<{ alreadyReviewed: boolean; status: BottleDynamicStatus }> {
+  const reviewKey = getReviewKey(bottleId);
   const review: StoredReview = {
     id: crypto.randomUUID(),
     rating,
@@ -271,7 +297,7 @@ export async function addBottleReview(
 
   if (!redis) {
     const store = getMemoryStore();
-    const lockKey = `${bottleId}:${uid}`;
+    const lockKey = `${reviewKey}:${uid}`;
     if (store.reviewLocks.has(lockKey)) {
       return {
         alreadyReviewed: true,
@@ -280,14 +306,14 @@ export async function addBottleReview(
     }
     store.reviewLocks.add(lockKey);
 
-    const prev = store.ratingStats.get(bottleId) ?? { sum: 0, count: 0 };
-    store.ratingStats.set(bottleId, {
+    const prev = store.ratingStats.get(reviewKey) ?? { sum: 0, count: 0 };
+    store.ratingStats.set(reviewKey, {
       sum: prev.sum + rating,
       count: prev.count + 1,
     });
 
-    const list = store.reviews.get(bottleId) ?? [];
-    store.reviews.set(bottleId, [review, ...list].slice(0, 50));
+    const list = store.reviews.get(reviewKey) ?? [];
+    store.reviews.set(reviewKey, [review, ...list].slice(0, 50));
 
     return {
       alreadyReviewed: false,
@@ -295,7 +321,7 @@ export async function addBottleReview(
     };
   }
 
-  const lockAcquired = await redis.set(`review:lock:${bottleId}:${uid}`, "1", {
+  const lockAcquired = await redis.set(`review:lock:${reviewKey}:${uid}`, "1", {
     nx: true,
     ex: REVIEW_LOCK_TTL_SECONDS,
   });
@@ -308,10 +334,10 @@ export async function addBottleReview(
   }
 
   const pipeline = redis.pipeline();
-  pipeline.hincrby(`rating:${bottleId}`, "sum", rating);
-  pipeline.hincrby(`rating:${bottleId}`, "count", 1);
-  pipeline.lpush(`reviews:${bottleId}`, JSON.stringify(review));
-  pipeline.ltrim(`reviews:${bottleId}`, 0, 49);
+  pipeline.hincrby(`rating:${reviewKey}`, "sum", rating);
+  pipeline.hincrby(`rating:${reviewKey}`, "count", 1);
+  pipeline.lpush(`reviews:${reviewKey}`, JSON.stringify(review));
+  pipeline.ltrim(`reviews:${reviewKey}`, 0, 49);
   await pipeline.exec();
 
   return {
@@ -324,12 +350,14 @@ export async function deleteBottleReview(
   bottleId: string,
   uid: string
 ): Promise<{ deleted: boolean; status: BottleDynamicStatus }> {
+  const reviewKey = getReviewKey(bottleId);
+
   if (!redis) {
     const store = getMemoryStore();
-    const list = store.reviews.get(bottleId) ?? [];
+    const list = store.reviews.get(reviewKey) ?? [];
     const target = list.find((r) => r.authorUid === uid);
     if (!target) {
-      const hadLock = store.reviewLocks.delete(`${bottleId}:${uid}`);
+      const hadLock = store.reviewLocks.delete(`${reviewKey}:${uid}`);
       return {
         deleted: hadLock,
         status: await getBottleStatus(bottleId, uid),
@@ -337,13 +365,13 @@ export async function deleteBottleReview(
     }
 
     store.reviews.set(
-      bottleId,
+      reviewKey,
       list.filter((r) => r.id !== target.id)
     );
-    store.reviewLocks.delete(`${bottleId}:${uid}`);
+    store.reviewLocks.delete(`${reviewKey}:${uid}`);
 
-    const prev = store.ratingStats.get(bottleId) ?? { sum: 0, count: 0 };
-    store.ratingStats.set(bottleId, {
+    const prev = store.ratingStats.get(reviewKey) ?? { sum: 0, count: 0 };
+    store.ratingStats.set(reviewKey, {
       sum: Math.max(0, prev.sum - target.rating),
       count: Math.max(0, prev.count - 1),
     });
@@ -354,7 +382,7 @@ export async function deleteBottleReview(
     };
   }
 
-  const rawList = await redis.lrange<unknown>(`reviews:${bottleId}`, 0, 49);
+  const rawList = await redis.lrange<unknown>(`reviews:${reviewKey}`, 0, 49);
   let targetRaw: string | null = null;
   let targetRating = 0;
 
@@ -373,7 +401,7 @@ export async function deleteBottleReview(
   }
 
   if (!targetRaw) {
-    const hadLock = await redis.del(`review:lock:${bottleId}:${uid}`);
+    const hadLock = await redis.del(`review:lock:${reviewKey}:${uid}`);
     return {
       deleted: hadLock > 0,
       status: await getBottleStatus(bottleId, uid),
@@ -381,10 +409,10 @@ export async function deleteBottleReview(
   }
 
   const pipeline = redis.pipeline();
-  pipeline.lrem(`reviews:${bottleId}`, 1, targetRaw);
-  pipeline.hincrby(`rating:${bottleId}`, "sum", -targetRating);
-  pipeline.hincrby(`rating:${bottleId}`, "count", -1);
-  pipeline.del(`review:lock:${bottleId}:${uid}`);
+  pipeline.lrem(`reviews:${reviewKey}`, 1, targetRaw);
+  pipeline.hincrby(`rating:${reviewKey}`, "sum", -targetRating);
+  pipeline.hincrby(`rating:${reviewKey}`, "count", -1);
+  pipeline.del(`review:lock:${reviewKey}:${uid}`);
   await pipeline.exec();
 
   return {

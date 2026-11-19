@@ -610,3 +610,38 @@ export const ALL_ITEM_IDS = BOOTHS.flatMap((booth) => [
   ...booth.tastings.map((tasting) => tasting.id),
   ...booth.bottles.map((bottle) => bottle.id),
 ]);
+
+// 같은 부스 내에서 시음(tasting)과 판매 보틀(bottle)의 이름이 같으면
+// 평점·한줄평 키(reviewKey)를 공유하고, 매진 상태는 각 항목 ID별로 독립 관리합니다.
+const ITEM_REVIEW_KEY_MAP: Record<string, string> = {};
+const REVIEW_KEY_GROUP_MAP: Record<string, string[]> = {};
+
+for (const booth of BOOTHS) {
+  const bottleByName = new Map<string, string>();
+  for (const bottle of booth.bottles) {
+    const norm = bottle.name.trim().toLowerCase();
+    bottleByName.set(norm, bottle.id);
+    ITEM_REVIEW_KEY_MAP[bottle.id] = bottle.id;
+    REVIEW_KEY_GROUP_MAP[bottle.id] = [bottle.id];
+  }
+
+  for (const tasting of booth.tastings) {
+    const norm = tasting.name.trim().toLowerCase();
+    const matchedBottleId = bottleByName.get(norm);
+    const reviewKey = matchedBottleId ?? tasting.id;
+    ITEM_REVIEW_KEY_MAP[tasting.id] = reviewKey;
+    if (!REVIEW_KEY_GROUP_MAP[reviewKey]) {
+      REVIEW_KEY_GROUP_MAP[reviewKey] = [];
+    }
+    REVIEW_KEY_GROUP_MAP[reviewKey].push(tasting.id);
+  }
+}
+
+export function getReviewKey(itemId: string): string {
+  return ITEM_REVIEW_KEY_MAP[itemId] ?? itemId;
+}
+
+export function getSharedReviewItemIds(itemId: string): string[] {
+  const key = getReviewKey(itemId);
+  return REVIEW_KEY_GROUP_MAP[key] ?? [itemId];
+}

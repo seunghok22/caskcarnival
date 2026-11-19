@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { Search, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 import type { Booth, BoothZone } from "@/types/festival";
+import { getReviewKey } from "@/data/booths";
 
 interface BoothMapProps {
   booths: Booth[];
   selectedBoothId: string;
   onSelectBooth: (boothId: string) => void;
+  wantedKeys: Set<string>;
 }
 
 const ZONE_FILTERS: { label: string; value: BoothZone | "ALL" }[] = [
@@ -26,6 +28,7 @@ export function BoothMap({
   booths,
   selectedBoothId,
   onSelectBooth,
+  wantedKeys,
 }: BoothMapProps) {
   const [activeZone, setActiveZone] = useState<BoothZone | "ALL">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
@@ -338,6 +341,10 @@ export function BoothMap({
                 ? "#b8b0ac"
                 : "#2b181b";
 
+              const hasWanted =
+                booth.tastings.some((t) => wantedKeys.has(getReviewKey(t.id))) ||
+                booth.bottles.some((b) => wantedKeys.has(getReviewKey(b.id)));
+
               const cx = booth.rect.x + booth.rect.w / 2;
               const cy = booth.rect.y + booth.rect.h / 2;
 
@@ -370,6 +377,18 @@ export function BoothMap({
                   >
                     {booth.code}
                   </text>
+
+                  {/* 찜(wanted) 품목이 있는 부스 원형 마커 */}
+                  {hasWanted && (
+                    <circle
+                      cx={booth.rect.x + booth.rect.w - 7}
+                      cy={booth.rect.y + 7}
+                      r="4"
+                      fill="#f59e0b"
+                      stroke={isSelected ? "#ffffff" : "#78350f"}
+                      strokeWidth="1"
+                    />
+                  )}
                 </g>
               );
             })}
