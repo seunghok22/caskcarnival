@@ -9,6 +9,7 @@ import {
   ChevronRight,
   ListFilter,
   Bookmark,
+  Plus,
 } from "lucide-react";
 import type {
   Booth,
@@ -24,6 +25,7 @@ interface BoothDetailProps {
   statuses: Record<string, BottleDynamicStatus>;
   wantedKeys: Set<string>;
   onToggleWanted: (itemId: string) => void;
+  onOpenAddItem: (kind: "tasting" | "bottle") => void;
   onSelectBottle: (bottle: BottleItem) => void;
   onSelectTasting: (tasting: TastingItem) => void;
 }
@@ -59,6 +61,7 @@ export function BoothDetail({
   statuses,
   wantedKeys,
   onToggleWanted,
+  onOpenAddItem,
   onSelectBottle,
   onSelectTasting,
 }: BoothDetailProps) {
@@ -191,8 +194,8 @@ export function BoothDetail({
           </div>
         </div>
 
-        {/* 1. 시음 / 판매 보틀 탭 */}
-        <div className="mb-3 flex items-center justify-between gap-2">
+        {/* 1. 시음 / 판매 보틀 탭 + 제품 추가 버튼 */}
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:inline-flex">
             <button
               type="button"
@@ -220,9 +223,14 @@ export function BoothDetail({
             </button>
           </div>
 
-          <span className="hidden text-[11px] text-stone-400 sm:inline">
-            항목 클릭 시 상세 정보·평점·매진 제안 가능
-          </span>
+          <button
+            type="button"
+            onClick={() => onOpenAddItem(activeTab)}
+            className="inline-flex w-full items-center justify-center gap-1 rounded-xl border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-200 transition hover:border-amber-400 hover:bg-amber-500/20 sm:w-auto"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span>제품 추가</span>
+          </button>
         </div>
 
         {/* 2. 컴팩트 리스트형 (시음 목록 탭) */}
@@ -273,15 +281,22 @@ export function BoothDetail({
                     >
                       {/* 1행: 보틀명 + 가격 + 화살표 */}
                       <div className="flex items-center justify-between gap-3">
-                        <span
-                          className={`truncate text-sm font-medium ${
-                            isSoldOut
-                              ? "text-stone-400 line-through"
-                              : "text-stone-100 group-hover:text-amber-200"
-                          }`}
-                        >
-                          {tasting.name}
-                        </span>
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          {tasting.isUserContributed && (
+                            <span className="shrink-0 rounded bg-sky-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-sky-300">
+                              제보
+                            </span>
+                          )}
+                          <span
+                            className={`truncate text-sm font-medium ${
+                              isSoldOut
+                                ? "text-stone-400 line-through"
+                                : "text-stone-100 group-hover:text-amber-200"
+                            }`}
+                          >
+                            {tasting.name}
+                          </span>
+                        </div>
                         <div className="flex shrink-0 items-center gap-1.5">
                           <span className="rounded bg-stone-800/90 px-2 py-0.5 text-xs font-semibold text-amber-300">
                             {tasting.priceLabel}
@@ -369,15 +384,22 @@ export function BoothDetail({
                     >
                       {/* 1행: 보틀명 + 가격 + 화살표 */}
                       <div className="flex items-center justify-between gap-3">
-                        <span
-                          className={`truncate text-sm font-medium ${
-                            isSoldOut
-                              ? "text-stone-400 line-through"
-                              : "text-stone-100 group-hover:text-amber-200"
-                          }`}
-                        >
-                          {bottle.name}
-                        </span>
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          {bottle.isUserContributed && (
+                            <span className="shrink-0 rounded bg-sky-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-sky-300">
+                              제보
+                            </span>
+                          )}
+                          <span
+                            className={`truncate text-sm font-medium ${
+                              isSoldOut
+                                ? "text-stone-400 line-through"
+                                : "text-stone-100 group-hover:text-amber-200"
+                            }`}
+                          >
+                            {bottle.name}
+                          </span>
+                        </div>
                         <div className="flex shrink-0 items-center gap-1.5">
                           <span className="text-sm font-bold text-amber-300">
                             {bottle.price.toLocaleString("ko-KR")}원

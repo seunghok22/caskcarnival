@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { ALL_ITEM_IDS } from "@/data/booths";
 import {
   attachUidCookie,
   getClientIp,
@@ -9,6 +8,7 @@ import {
   addBottleReview,
   checkRelaxedIpRateLimit,
   deleteBottleReview,
+  isValidItemId,
 } from "@/lib/redis";
 
 export async function POST(
@@ -17,7 +17,7 @@ export async function POST(
 ) {
   try {
     const { bottleId } = await context.params;
-    if (!ALL_ITEM_IDS.includes(bottleId)) {
+    if (!(await isValidItemId(bottleId))) {
       return NextResponse.json(
         { error: "존재하지 않는 항목입니다." },
         { status: 404 }
@@ -89,7 +89,7 @@ export async function DELETE(
 ) {
   try {
     const { bottleId } = await context.params;
-    if (!ALL_ITEM_IDS.includes(bottleId)) {
+    if (!(await isValidItemId(bottleId))) {
       return NextResponse.json(
         { error: "존재하지 않는 항목입니다." },
         { status: 404 }

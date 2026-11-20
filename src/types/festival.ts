@@ -11,6 +11,8 @@ export interface TastingItem {
   vintage?: string;
   age?: string;
   whiskybaseUrl?: string;
+  isUserContributed?: boolean;
+  isMine?: boolean;
 }
 
 export interface BottleItem {
@@ -25,6 +27,38 @@ export interface BottleItem {
   vintage?: string;
   age?: string;
   whiskybaseUrl?: string;
+  isUserContributed?: boolean;
+  isMine?: boolean;
+}
+
+export interface ItemPatch {
+  distillery?: string;
+  abv?: string;
+  cask?: string;
+  age?: string;
+  vintage?: string;
+  whiskybaseUrl?: string;
+  note?: string;
+}
+
+export interface CustomBoothItem {
+  id: string;
+  boothCode: string;
+  kind: "tasting" | "bottle";
+  name: string;
+  distillery?: string;
+  abv: string;
+  volume?: string;
+  price?: number;
+  priceLabel?: string;
+  note?: string;
+  cask?: string;
+  vintage?: string;
+  age?: string;
+  whiskybaseUrl?: string;
+  createdAt: string;
+  isUserContributed: true;
+  isMine?: boolean;
 }
 
 export interface Booth {

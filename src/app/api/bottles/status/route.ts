@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
-import { ALL_ITEM_IDS } from "@/data/booths";
 import { attachUidCookie, getOrCreateClientUid } from "@/lib/identity";
-import { getAllBottleStatuses } from "@/lib/redis";
+import { getInitialDashboardData } from "@/lib/redis";
 
 export async function GET() {
   try {
     const { uid, isNew } = await getOrCreateClientUid();
-    const statuses = await getAllBottleStatuses(ALL_ITEM_IDS, uid);
-    const res = NextResponse.json({ statuses });
+    const { statuses, patches, customItems } =
+      await getInitialDashboardData(uid);
+    const res = NextResponse.json({ statuses, patches, customItems });
     return attachUidCookie(res, uid, isNew);
   } catch (error) {
     console.error("GET /api/bottles/status error:", error);

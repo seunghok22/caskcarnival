@@ -3,13 +3,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { BOOTHS, getReviewKey, getSharedReviewItemIds } from "@/data/booths";
 import type {
+  Booth,
   BottleDynamicStatus,
   BottleItem,
+  CustomBoothItem,
+  ItemPatch,
   TastingItem,
 } from "@/types/festival";
 import { BoothMap } from "./BoothMap";
 import { BoothDetail } from "./BoothDetail";
 import { BottleModal } from "./BottleModal";
+import { AddItemModal } from "./AddItemModal";
 
 export type SelectedDetailItem =
   | { kind: "bottle"; item: BottleItem }
@@ -25,14 +29,35 @@ function parseTastingPrice(priceLabel: string): number {
   return Number(match[1]);
 }
 
-const ITEM_PRICE_MAP: Record<string, number> = {};
-for (const booth of BOOTHS) {
-  for (const t of booth.tastings) {
-    ITEM_PRICE_MAP[t.id] = parseTastingPrice(t.priceLabel);
-  }
-  for (const b of booth.bottles) {
-    ITEM_PRICE_MAP[b.id] = b.price;
-  }
+function applyPatchToTasting(t: TastingItem, p?: ItemPatch): TastingItem {
+  if (!p) return t;
+  return {
+    ...t,
+    distillery: t.distillery || p.distillery,
+    abv: t.abv && t.abv !== "-" ? t.abv : p.abv || t.abv,
+    cask: t.cask || p.cask,
+    age: t.age || p.age,
+    vintage: t.vintage || p.vintage,
+    whiskybaseUrl: t.whiskybaseUrl || p.whiskybaseUrl,
+    note: t.note && t.note !== "현장 시음" ? t.note : p.note || t.note,
+  };
+}
+
+function applyPatchToBottle(b: BottleItem, p?: ItemPatch): BottleItem {
+  if (!p) return b;
+  return {
+    ...b,
+    distillery:
+      b.distillery && b.distillery !== "-"
+        ? b.distillery
+        : p.distillery || b.distillery,
+    abv: b.abv && b.abv !== "-" ? b.abv : p.abv || b.abv,
+    cask: b.cask || p.cask,
+    age: b.age || p.age,
+    vintage: b.vintage || p.vintage,
+    whiskybaseUrl: b.whiskybaseUrl || p.whiskybaseUrl,
+    note: b.note || p.note,
+  };
 }
 
 export function FestivalApp() {
@@ -40,11 +65,19 @@ export function FestivalApp() {
   const [selectedBoothId, setSelectedBoothId] = useState<string>(
     defaultBooth.id
   );
-  const [selectedDetail, setSelectedDetail] =
-    useState<SelectedDetailItem | null>(null);
+  const [selectedRef, setSelectedRef] = useState<{
+    kind: "bottle" | "tasting";
+    id: string;
+  } | null>(null);
+  const [addModalKind, setAddModalKind] = useState<
+    "tasting" | "bottle" | null
+  >(null);
+
   const [statuses, setStatuses] = useState<Record<string, BottleDynamicStatus>>(
     {}
   );
+  const [patches, setPatches] = useState<Record<string, ItemPatch>>({});
+  const [customItems, setCustomItems] = useState<CustomBoothItem[]>([]);
   const [wantedKeys, setWantedKeys] = useState<Set<string>>(() => new Set());
   const [reviewedItemMap, setReviewedItemMap] = useState<
     Record<string, string>
@@ -76,9 +109,10 @@ export function FestivalApp() {
     fetch("/api/bottles/status")
       .then((res) => res.json())
       .then((data) => {
-        if (active && data.statuses) {
-          setStatuses(data.statuses);
-        }
+        if (!active) return;
+        if (data.statuses) setStatuses(data.statuses);
+        if (data.patches) setPatches(data.patches);
+        if (Array.isArray(data.customItems)) setCustomItems(data.customItems);
       })
       .catch((err) => {
         console.error("Failed to fetch bottle statuses:", err);
@@ -89,8 +123,106 @@ export function FestivalApp() {
     };
   }, []);
 
+  // 정적 부스 데이터 + Redis 패치(빈 정보 보완) + 유저 제보 제품 병합
+  const mergedBooths = useMemo<Booth[]>(() => {
+    const customByBooth = new Map<string, CustomBoothItem[]>();
+    for (const item of customItems) {
+      const list = customByBooth.get(item.boothCode) ?? [];
+      list.push(item);
+      customByBooth.set(item.boothCode, list);
+    }
+
+    return BOOTHS.map((booth) => {
+      const patchedTastings = booth.tastings.map((t) =>
+        applyPatchToTasting(t, patches[t.id])
+      );
+      const patchedBottles = booth.bottles.map((b) =>
+        applyPatchToBottle(b, patches[b.id])
+      );
+
+      const extras = customByBooth.get(booth.code) ?? [];
+      for (const c of extras) {
+        if (c.kind === "tasting") {
+          patchedTastings.push(
+            applyPatchToTasting(
+              {
+                id: c.id,
+                name: c.name,
+                distillery: c.distillery,
+                abv: c.abv || "-",
+                note: c.note || c.distillery || "유저 제보 시음",
+                priceLabel: c.priceLabel || "현장 문의",
+                cask: c.cask,
+                vintage: c.vintage,
+                age: c.age,
+                whiskybaseUrl: c.whiskybaseUrl,
+                isUserContributed: true,
+                isMine: c.isMine,
+              },
+              patches[c.id]
+            )
+          );
+        } else {
+          patchedBottles.push(
+            applyPatchToBottle(
+              {
+                id: c.id,
+                name: c.name,
+                distillery: c.distillery || "-",
+                abv: c.abv || "-",
+                volume: c.volume || "700ml",
+                price: c.price ?? 0,
+                note: c.note,
+                cask: c.cask,
+                vintage: c.vintage,
+                age: c.age,
+                whiskybaseUrl: c.whiskybaseUrl,
+                isUserContributed: true,
+                isMine: c.isMine,
+              },
+              patches[c.id]
+            )
+          );
+        }
+      }
+
+      return {
+        ...booth,
+        tastings: patchedTastings,
+        bottles: patchedBottles,
+      };
+    });
+  }, [patches, customItems]);
+
+  const itemPriceMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const booth of mergedBooths) {
+      for (const t of booth.tastings) {
+        map[t.id] = parseTastingPrice(t.priceLabel);
+      }
+      for (const b of booth.bottles) {
+        map[b.id] = b.price;
+      }
+    }
+    return map;
+  }, [mergedBooths]);
+
   const selectedBooth =
-    BOOTHS.find((b) => b.id === selectedBoothId) ?? defaultBooth;
+    mergedBooths.find((b) => b.id === selectedBoothId) ?? mergedBooths[0];
+
+  const selectedDetail = useMemo<SelectedDetailItem | null>(() => {
+    if (!selectedRef) return null;
+    for (const booth of mergedBooths) {
+      if (selectedRef.kind === "bottle") {
+        const found = booth.bottles.find((b) => b.id === selectedRef.id);
+        if (found) return { kind: "bottle", item: found };
+      } else {
+        const found = booth.tastings.find((t) => t.id === selectedRef.id);
+        if (found) return { kind: "tasting", item: found };
+      }
+    }
+    return null;
+  }, [mergedBooths, selectedRef]);
 
   function handleToggleWanted(itemId: string) {
     setWantedKeys((prev) => {
@@ -164,16 +296,30 @@ export function FestivalApp() {
     });
   }
 
-  // 찜(wanted)한 제품의 가격합 (시음/보틀 각각 선택한 항목의 가격 합산)
+  function handlePatchApplied(itemId: string, savedPatch: ItemPatch) {
+    setPatches((prev) => ({
+      ...prev,
+      [itemId]: savedPatch,
+    }));
+  }
+
+  function handleCustomItemAdded(created: CustomBoothItem) {
+    setCustomItems((prev) => [...prev, created]);
+  }
+
+  function handleCustomItemDeleted(itemId: string) {
+    setCustomItems((prev) => prev.filter((c) => c.id !== itemId));
+    setSelectedRef(null);
+  }
+
   const wantedTotal = useMemo(() => {
     let sum = 0;
     for (const id of wantedKeys) {
-      sum += ITEM_PRICE_MAP[id] ?? 0;
+      sum += itemPriceMap[id] ?? 0;
     }
     return sum;
-  }, [wantedKeys]);
+  }, [wantedKeys, itemPriceMap]);
 
-  // 평가한 제품의 가격합 (평가 작성 시 클릭한 항목 기준, 이전 기록은 reviewKey 기준 폴백)
   const reviewedTotal = useMemo(() => {
     const countedReviewKeys = new Set<string>();
     let sum = 0;
@@ -185,11 +331,11 @@ export function FestivalApp() {
       countedReviewKeys.add(rKey);
 
       const chosenItemId = reviewedItemMap[rKey] ?? itemId;
-      sum += ITEM_PRICE_MAP[chosenItemId] ?? 0;
+      sum += itemPriceMap[chosenItemId] ?? 0;
     }
 
     return sum;
-  }, [statuses, reviewedItemMap]);
+  }, [statuses, reviewedItemMap, itemPriceMap]);
 
   return (
     <main className="mx-auto flex min-h-screen max-w-5xl flex-col gap-5 px-4 py-6">
@@ -217,7 +363,7 @@ export function FestivalApp() {
 
       {/* 1. 상단 부스 지도 */}
       <BoothMap
-        booths={BOOTHS}
+        booths={mergedBooths}
         selectedBoothId={selectedBooth.id}
         onSelectBooth={setSelectedBoothId}
         wantedKeys={wantedKeys}
@@ -225,21 +371,22 @@ export function FestivalApp() {
 
       {/* 2. 하단 부스 상세 & 번호순 전체 목록 */}
       <BoothDetail
-        booths={BOOTHS}
+        booths={mergedBooths}
         selectedBooth={selectedBooth}
         onSelectBooth={setSelectedBoothId}
         statuses={statuses}
         wantedKeys={wantedKeys}
         onToggleWanted={handleToggleWanted}
+        onOpenAddItem={(kind) => setAddModalKind(kind)}
         onSelectBottle={(bottle) =>
-          setSelectedDetail({ kind: "bottle", item: bottle })
+          setSelectedRef({ kind: "bottle", id: bottle.id })
         }
         onSelectTasting={(tasting) =>
-          setSelectedDetail({ kind: "tasting", item: tasting })
+          setSelectedRef({ kind: "tasting", id: tasting.id })
         }
       />
 
-      {/* 3. 시음/보틀 상세 / 평점 / 한줄평 / 매진 제안 모달 */}
+      {/* 3. 시음/보틀 상세 / 빈 정보 채우기 / 평점 / 한줄평 / 매진 제안 모달 */}
       {selectedDetail && (
         <BottleModal
           detail={selectedDetail}
@@ -250,8 +397,20 @@ export function FestivalApp() {
             handleReviewSubmitted(selectedDetail.item.id)
           }
           onReviewDeleted={() => handleReviewDeleted(selectedDetail.item.id)}
-          onClose={() => setSelectedDetail(null)}
+          onPatchApplied={handlePatchApplied}
+          onCustomItemDeleted={handleCustomItemDeleted}
+          onClose={() => setSelectedRef(null)}
           onStatusUpdated={handleStatusUpdated}
+        />
+      )}
+
+      {/* 4. 새 제품 제보 / 추가 모달 */}
+      {addModalKind && (
+        <AddItemModal
+          booth={selectedBooth}
+          defaultKind={addModalKind}
+          onClose={() => setAddModalKind(null)}
+          onItemAdded={handleCustomItemAdded}
         />
       )}
     </main>

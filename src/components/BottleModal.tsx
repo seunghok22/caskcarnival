@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   X,
   Star,
@@ -10,8 +10,9 @@ import {
   ExternalLink,
   Trash2,
   Bookmark,
+  Pencil,
 } from "lucide-react";
-import type { BottleDynamicStatus } from "@/types/festival";
+import type { BottleDynamicStatus, ItemPatch } from "@/types/festival";
 import { getReviewKey } from "@/data/booths";
 import type { SelectedDetailItem } from "./FestivalApp";
 
@@ -22,6 +23,8 @@ interface BottleModalProps {
   onToggleWanted: () => void;
   onReviewSubmitted: () => void;
   onReviewDeleted: () => void;
+  onPatchApplied: (itemId: string, patch: ItemPatch) => void;
+  onCustomItemDeleted: (itemId: string) => void;
   onClose: () => void;
   onStatusUpdated: (updated: BottleDynamicStatus) => void;
 }
@@ -35,6 +38,8 @@ export function BottleModal({
   onToggleWanted,
   onReviewSubmitted,
   onReviewDeleted,
+  onPatchApplied,
+  onCustomItemDeleted,
   onClose,
   onStatusUpdated,
 }: BottleModalProps) {
@@ -44,10 +49,52 @@ export function BottleModal({
   const [submittingReview, setSubmittingReview] = useState(false);
   const [deletingReview, setDeletingReview] = useState(false);
   const [submittingSoldOut, setSubmittingSoldOut] = useState(false);
+  const [showPatchForm, setShowPatchForm] = useState(false);
+  const [submittingPatch, setSubmittingPatch] = useState(false);
+  const [deletingCustomItem, setDeletingCustomItem] = useState(false);
+  const [patchDistillery, setPatchDistillery] = useState("");
+  const [patchAbv, setPatchAbv] = useState("");
+  const [patchCask, setPatchCask] = useState("");
+  const [patchAge, setPatchAge] = useState("");
+  const [patchVintage, setPatchVintage] = useState("");
+  const [patchWhiskybase, setPatchWhiskybase] = useState("");
   const [feedback, setFeedback] = useState<{
     type: "success" | "error";
     text: string;
   } | null>(null);
+
+  // 모달이 열릴 때 해당 항목의 최신 한줄평/상태를 단건 조회합니다.
+  useEffect(() => {
+    let active = true;
+    fetch(`/api/bottles/${item.id}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (active && data?.status) {
+          onStatusUpdated(data.status as BottleDynamicStatus);
+        }
+      })
+      .catch(() => {
+        // ignore background refresh errors
+      });
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.id]);
+
+  const missingDistillery = !item.distillery || item.distillery === "-";
+  const missingAbv = !item.abv || item.abv === "-";
+  const missingCask = !item.cask;
+  const missingAge = !item.age;
+  const missingVintage = !item.vintage;
+  const missingWhiskybase = !item.whiskybaseUrl;
+  const hasAnyMissingField =
+    missingDistillery ||
+    missingAbv ||
+    missingCask ||
+    missingAge ||
+    missingVintage ||
+    missingWhiskybase;
 
   const reviewKey = getReviewKey(item.id);
   const localSoldOutKey = `cask_soldout_${item.id}`;
@@ -250,16 +297,103 @@ export function BottleModal({
     }
   }
 
+  async function handlePatchSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (submittingPatch) return;
+    setSubmittingPatch(true);
+    setFeedback(null);
+
+    try {
+      const res = await fetch("/api/contributions/patch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          itemId: item.id,
+          patch: {
+            distillery: missingDistillery ? patchDistillery : undefined,
+            abv: missingAbv ? patchAbv : undefined,
+            cask: missingCask ? patchCask : undefined,
+            age: missingAge ? patchAge : undefined,
+            vintage: missingVintage ? patchVintage : undefined,
+            whiskybaseUrl: missingWhiskybase ? patchWhiskybase : undefined,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setFeedback({
+          type: "error",
+          text: data.error ?? "정보 수정에 실패했습니다.",
+        });
+        return;
+      }
+      if (data.patch) {
+        onPatchApplied(item.id, data.patch as ItemPatch);
+      }
+      setShowPatchForm(false);
+      setPatchDistillery("");
+      setPatchAbv("");
+      setPatchCask("");
+      setPatchAge("");
+      setPatchVintage("");
+      setPatchWhiskybase("");
+      setFeedback({
+        type: "success",
+        text: "빈 정보가 즉시 반영되었습니다. 제보해 주셔서 감사합니다!",
+      });
+    } catch {
+      setFeedback({
+        type: "error",
+        text: "네트워크 오류가 발생했습니다.",
+      });
+    } finally {
+      setSubmittingPatch(false);
+    }
+  }
+
+  async function handleDeleteCustomItem() {
+    if (deletingCustomItem) return;
+    setDeletingCustomItem(true);
+    setFeedback(null);
+
+    try {
+      const res = await fetch(`/api/contributions/item/${item.id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setFeedback({
+          type: "error",
+          text: data.error ?? "제품 삭제에 실패했습니다.",
+        });
+        return;
+      }
+      onCustomItemDeleted(item.id);
+    } catch {
+      setFeedback({
+        type: "error",
+        text: "네트워크 오류가 발생했습니다.",
+      });
+    } finally {
+      setDeletingCustomItem(false);
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:p-4">
       <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-2xl border border-amber-900/40 bg-[#181411] p-5 shadow-2xl sm:rounded-2xl">
         {/* 헤더 */}
         <div className="flex items-start justify-between gap-3 border-b border-stone-800 pb-4">
           <div>
-            <div className="flex items-center gap-2 text-xs text-stone-400">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-stone-400">
               <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">
                 {kind === "bottle" ? "판매 보틀" : "시음"}
               </span>
+              {item.isUserContributed && (
+                <span className="rounded bg-sky-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-sky-300">
+                  유저 제보
+                </span>
+              )}
               {kind === "bottle" ? (
                 <span>
                   {item.distillery}
@@ -360,7 +494,124 @@ export function BottleModal({
             />
             <span>wanted</span>
           </button>
+
+          {hasAnyMissingField && (
+            <button
+              type="button"
+              onClick={() => setShowPatchForm((v) => !v)}
+              className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                showPatchForm
+                  ? "border-sky-400 bg-sky-500/20 text-sky-200"
+                  : "border-stone-700 bg-stone-900/80 text-stone-300 hover:border-sky-500/50 hover:text-sky-200"
+              }`}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              <span>빈 정보 채우기</span>
+            </button>
+          )}
+
+          {item.isUserContributed && item.isMine && (
+            <button
+              type="button"
+              disabled={deletingCustomItem}
+              onClick={handleDeleteCustomItem}
+              className="inline-flex items-center gap-1 rounded-xl border border-rose-800/70 bg-rose-950/40 px-3 py-2 text-xs font-semibold text-rose-300 hover:bg-rose-900/50 disabled:opacity-50"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>{deletingCustomItem ? "삭제 중..." : "제보 제품 삭제"}</span>
+            </button>
+          )}
         </div>
+
+        {/* 빈 정보 채우기 폼 (비어있는 필드만 노출) */}
+        {showPatchForm && hasAnyMissingField && (
+          <form
+            onSubmit={handlePatchSubmit}
+            className="mt-3 rounded-xl border border-sky-900/60 bg-sky-950/20 p-3.5 text-xs"
+          >
+            <div className="mb-2 font-semibold text-sky-200">
+              비어 있는 정보만 입력해 바로 반영할 수 있습니다
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {missingDistillery && (
+                <input
+                  type="text"
+                  maxLength={60}
+                  value={patchDistillery}
+                  onChange={(e) => setPatchDistillery(e.target.value)}
+                  placeholder="증류소 (예: Springbank)"
+                  className="rounded-lg border border-stone-700 bg-stone-950 px-2.5 py-1.5 text-xs text-stone-100 placeholder:text-stone-500 focus:border-sky-400 focus:outline-none"
+                />
+              )}
+              {missingAbv && (
+                <input
+                  type="text"
+                  maxLength={20}
+                  value={patchAbv}
+                  onChange={(e) => setPatchAbv(e.target.value)}
+                  placeholder="도수 (예: 52.5%)"
+                  className="rounded-lg border border-stone-700 bg-stone-950 px-2.5 py-1.5 text-xs text-stone-100 placeholder:text-stone-500 focus:border-sky-400 focus:outline-none"
+                />
+              )}
+              {missingCask && (
+                <input
+                  type="text"
+                  maxLength={80}
+                  value={patchCask}
+                  onChange={(e) => setPatchCask(e.target.value)}
+                  placeholder="캐스크 (예: Oloroso Sherry)"
+                  className="rounded-lg border border-stone-700 bg-stone-950 px-2.5 py-1.5 text-xs text-stone-100 placeholder:text-stone-500 focus:border-sky-400 focus:outline-none"
+                />
+              )}
+              {missingAge && (
+                <input
+                  type="text"
+                  maxLength={30}
+                  value={patchAge}
+                  onChange={(e) => setPatchAge(e.target.value)}
+                  placeholder="숙성기간 (예: 15년)"
+                  className="rounded-lg border border-stone-700 bg-stone-950 px-2.5 py-1.5 text-xs text-stone-100 placeholder:text-stone-500 focus:border-sky-400 focus:outline-none"
+                />
+              )}
+              {missingVintage && (
+                <input
+                  type="text"
+                  maxLength={20}
+                  value={patchVintage}
+                  onChange={(e) => setPatchVintage(e.target.value)}
+                  placeholder="빈티지 (예: 2010)"
+                  className="rounded-lg border border-stone-700 bg-stone-950 px-2.5 py-1.5 text-xs text-stone-100 placeholder:text-stone-500 focus:border-sky-400 focus:outline-none"
+                />
+              )}
+            </div>
+            {missingWhiskybase && (
+              <input
+                type="url"
+                maxLength={250}
+                value={patchWhiskybase}
+                onChange={(e) => setPatchWhiskybase(e.target.value)}
+                placeholder="Whiskybase URL (https://www.whiskybase.com/...)"
+                className="mt-2 w-full rounded-lg border border-stone-700 bg-stone-950 px-2.5 py-1.5 text-xs text-stone-100 placeholder:text-stone-500 focus:border-sky-400 focus:outline-none"
+              />
+            )}
+            <div className="mt-2.5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowPatchForm(false)}
+                className="rounded-lg border border-stone-700 bg-stone-900 px-3 py-1.5 text-xs text-stone-300"
+              >
+                닫기
+              </button>
+              <button
+                type="submit"
+                disabled={submittingPatch}
+                className="rounded-lg bg-sky-500 px-3.5 py-1.5 text-xs font-bold text-stone-950 hover:bg-sky-400 disabled:opacity-50"
+              >
+                {submittingPatch ? "저장 중..." : "정보 반영하기"}
+              </button>
+            </div>
+          </form>
+        )}
 
         {feedback && (
           <div
