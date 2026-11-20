@@ -39,6 +39,8 @@ export interface ItemPatch {
   vintage?: string;
   whiskybaseUrl?: string;
   note?: string;
+  price?: number;
+  priceLabel?: string;
 }
 
 export interface CustomBoothItem {

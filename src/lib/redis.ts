@@ -616,7 +616,7 @@ export async function addBottleReview(
     count: 0,
   };
   const nextRating: RatingSummary = {
-    sum: Math.max(0, Number(prev.sum ?? 0)) + rating,
+    sum: Number((Math.max(0, Number(prev.sum ?? 0)) + rating).toFixed(1)),
     count: Math.max(0, Number(prev.count ?? 0)) + 1,
   };
 
@@ -706,7 +706,9 @@ export async function deleteBottleReview(
   const nextSum =
     nextCount === 0
       ? 0
-      : Math.max(0, Number(prev.sum ?? 0) - totalRemovedRating);
+      : Number(
+          Math.max(0, Number(prev.sum ?? 0) - totalRemovedRating).toFixed(1)
+        );
 
   for (const idx of targetIndices) {
     await redis.lset(`reviews:${reviewKey}`, idx, DELETED_SENTINEL);
@@ -764,34 +766,31 @@ export async function saveItemPatch(
   itemId: string,
   incoming: ItemPatch
 ): Promise<ItemPatch> {
+  function mergePatch(prev: ItemPatch): ItemPatch {
+    const merged: ItemPatch = { ...prev };
+    if (incoming.distillery && !merged.distillery) merged.distillery = incoming.distillery;
+    if (incoming.abv && !merged.abv) merged.abv = incoming.abv;
+    if (incoming.cask && !merged.cask) merged.cask = incoming.cask;
+    if (incoming.age && !merged.age) merged.age = incoming.age;
+    if (incoming.vintage && !merged.vintage) merged.vintage = incoming.vintage;
+    if (incoming.whiskybaseUrl && !merged.whiskybaseUrl) merged.whiskybaseUrl = incoming.whiskybaseUrl;
+    if (incoming.note && !merged.note) merged.note = incoming.note;
+    if (typeof incoming.price === "number" && merged.price === undefined) merged.price = incoming.price;
+    if (incoming.priceLabel && !merged.priceLabel) merged.priceLabel = incoming.priceLabel;
+    return merged;
+  }
+
   if (!redis) {
     const store = getMemoryStore();
     const prev = store.itemPatches.get(itemId) ?? {};
-    const merged: ItemPatch = { ...prev };
-    for (const [k, v] of Object.entries(incoming) as [
-      keyof ItemPatch,
-      string | undefined,
-    ][]) {
-      if (v && !merged[k]) {
-        merged[k] = v;
-      }
-    }
+    const merged = mergePatch(prev);
     store.itemPatches.set(itemId, merged);
     return merged;
   }
 
   const existingRaw = await redis.hget("patch:items:all", itemId);
   const prev = parseJsonSafe<ItemPatch>(existingRaw) ?? {};
-
-  const merged: ItemPatch = { ...prev };
-  for (const [k, v] of Object.entries(incoming) as [
-    keyof ItemPatch,
-    string | undefined,
-  ][]) {
-    if (v && !merged[k]) {
-      merged[k] = v;
-    }
-  }
+  const merged = mergePatch(prev);
 
   await redis.hset("patch:items:all", itemId, JSON.stringify(merged));
   return merged;

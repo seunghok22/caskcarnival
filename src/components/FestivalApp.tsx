@@ -47,6 +47,10 @@ function applyPatchToTasting(t: TastingItem, p?: ItemPatch): TastingItem {
     vintage: t.vintage || p.vintage,
     whiskybaseUrl: t.whiskybaseUrl || p.whiskybaseUrl,
     note: t.note && t.note !== "현장 시음" ? t.note : p.note || t.note,
+    priceLabel:
+      t.priceLabel && t.priceLabel !== "현장 문의"
+        ? t.priceLabel
+        : p.priceLabel || t.priceLabel,
   };
 }
 
@@ -64,6 +68,12 @@ function applyPatchToBottle(b: BottleItem, p?: ItemPatch): BottleItem {
     vintage: b.vintage || p.vintage,
     whiskybaseUrl: b.whiskybaseUrl || p.whiskybaseUrl,
     note: b.note || p.note,
+    price:
+      b.price >= 0
+        ? b.price
+        : typeof p.price === "number" && p.price >= 0
+        ? p.price
+        : b.price,
   };
 }
 

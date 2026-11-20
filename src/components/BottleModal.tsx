@@ -59,6 +59,7 @@ export function BottleModal({
   const [patchAge, setPatchAge] = useState("");
   const [patchVintage, setPatchVintage] = useState("");
   const [patchWhiskybase, setPatchWhiskybase] = useState("");
+  const [patchPrice, setPatchPrice] = useState("");
   const [feedback, setFeedback] = useState<{
     type: "success" | "error";
     text: string;
@@ -89,13 +90,18 @@ export function BottleModal({
   const missingAge = !item.age;
   const missingVintage = !item.vintage;
   const missingWhiskybase = !item.whiskybaseUrl;
+  const missingPrice =
+    kind === "bottle"
+      ? item.price < 0
+      : !item.priceLabel || item.priceLabel === "현장 문의";
   const hasAnyMissingField =
     missingDistillery ||
     missingAbv ||
     missingCask ||
     missingAge ||
     missingVintage ||
-    missingWhiskybase;
+    missingWhiskybase ||
+    missingPrice;
 
   const reviewKey = getReviewKey(item.id);
   const localSoldOutKey = `cask_soldout_${item.id}`;
@@ -318,6 +324,10 @@ export function BottleModal({
             age: missingAge ? patchAge : undefined,
             vintage: missingVintage ? patchVintage : undefined,
             whiskybaseUrl: missingWhiskybase ? patchWhiskybase : undefined,
+            price:
+              missingPrice && kind === "bottle" ? patchPrice : undefined,
+            priceLabel:
+              missingPrice && kind === "tasting" ? patchPrice : undefined,
           },
         }),
       });
@@ -339,6 +349,7 @@ export function BottleModal({
       setPatchAge("");
       setPatchVintage("");
       setPatchWhiskybase("");
+      setPatchPrice("");
       setFeedback({
         type: "success",
         text: "빈 정보가 즉시 반영되었습니다. 제보해 주셔서 감사합니다!",
@@ -539,6 +550,21 @@ export function BottleModal({
               비어 있는 정보만 입력해 바로 반영할 수 있습니다
             </div>
             <div className="grid grid-cols-2 gap-2">
+              {missingPrice && (
+                <input
+                  type={kind === "bottle" ? "number" : "text"}
+                  min={kind === "bottle" ? 0 : undefined}
+                  maxLength={40}
+                  value={patchPrice}
+                  onChange={(e) => setPatchPrice(e.target.value)}
+                  placeholder={
+                    kind === "bottle"
+                      ? "판매가 (원, 0=무료)"
+                      : "시음가 (예: 5000 또는 무료 시음)"
+                  }
+                  className="rounded-lg border border-stone-700 bg-stone-950 px-2.5 py-1.5 text-xs text-stone-100 placeholder:text-stone-500 focus:border-sky-400 focus:outline-none"
+                />
+              )}
               {missingDistillery && (
                 <input
                   type="text"
@@ -730,25 +756,46 @@ export function BottleModal({
           ) : (
             <>
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5">
-                  {[1, 2, 3, 4, 5].map((score) => (
-                    <button
-                      key={score}
-                      type="button"
-                      onClick={() => setRating(score)}
-                      className="p-1"
-                      aria-label={`${score}점`}
-                    >
-                      <Star
-                        className={`h-6 w-6 transition ${
-                          score <= rating
-                            ? "fill-amber-400 text-amber-400"
-                            : "text-stone-600"
-                        }`}
-                      />
-                    </button>
-                  ))}
-                  <span className="ml-1 text-xs text-stone-300">{rating}점</span>
+                <div className="flex items-center gap-1">
+                  {[1, 2, 3, 4, 5].map((star) => {
+                    const isFull = rating >= star;
+                    const isHalf = !isFull && rating >= star - 0.5;
+                    return (
+                      <div
+                        key={star}
+                        className="relative h-7 w-7 select-none"
+                      >
+                        {/* 배경 빈 별 */}
+                        <Star className="h-7 w-7 text-stone-600" />
+                        {/* 채워진 별 (전체 또는 왼쪽 절반) */}
+                        {(isFull || isHalf) && (
+                          <div
+                            className={`pointer-events-none absolute inset-y-0 left-0 overflow-hidden ${
+                              isFull ? "w-full" : "w-1/2"
+                            }`}
+                          >
+                            <Star className="h-7 w-7 fill-amber-400 text-amber-400" />
+                          </div>
+                        )}
+                        {/* 좌/우 반칸 클릭 영역 */}
+                        <button
+                          type="button"
+                          onClick={() => setRating(star - 0.5)}
+                          className="absolute inset-y-0 left-0 w-1/2"
+                          aria-label={`${star - 0.5}점`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setRating(star)}
+                          className="absolute inset-y-0 right-0 w-1/2"
+                          aria-label={`${star}점`}
+                        />
+                      </div>
+                    );
+                  })}
+                  <span className="ml-1.5 text-xs font-semibold text-amber-300">
+                    {rating.toFixed(1)}점
+                  </span>
                 </div>
 
                 <div className="flex items-center gap-1.5 text-xs text-stone-300">
@@ -786,19 +833,19 @@ export function BottleModal({
                 </div>
               </div>
 
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  maxLength={100}
+              <div className="flex items-end gap-2">
+                <textarea
+                  rows={2}
+                  maxLength={200}
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
-                  placeholder="한줄평을 남겨주세요 (선택, 최대 100자)"
-                  className="flex-1 rounded-xl border border-stone-700 bg-stone-950 px-3 py-2 text-sm text-stone-100 placeholder:text-stone-500 focus:border-amber-500 focus:outline-none"
+                  placeholder="한줄평을 남겨주세요 (줄바꿈 가능, 최대 200자)"
+                  className="flex-1 resize-none rounded-xl border border-stone-700 bg-stone-950 px-3 py-2 text-sm text-stone-100 placeholder:text-stone-500 focus:border-amber-500 focus:outline-none"
                 />
                 <button
                   type="submit"
                   disabled={submittingReview}
-                  className="shrink-0 rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-stone-950 hover:bg-amber-400 disabled:opacity-50"
+                  className="h-10 shrink-0 rounded-xl bg-amber-500 px-4 text-sm font-semibold text-stone-950 hover:bg-amber-400 disabled:opacity-50"
                 >
                   {submittingReview ? "등록..." : "등록"}
                 </button>
@@ -827,7 +874,10 @@ export function BottleModal({
                 >
                   <div className="flex items-center justify-between gap-2 text-amber-300">
                     <div className="flex items-center gap-2">
-                      <span>{"★".repeat(rev.rating)}</span>
+                      <span className="inline-flex items-center gap-1 font-semibold">
+                        <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                        {Number(rev.rating).toFixed(1)}
+                      </span>
                       {rev.isMine && (
                         <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-200">
                           내 평가
@@ -855,7 +905,9 @@ export function BottleModal({
                     </div>
                   </div>
                   {rev.comment && (
-                    <p className="mt-1 text-sm text-stone-200">{rev.comment}</p>
+                    <p className="mt-1 whitespace-pre-line break-words text-sm text-stone-200">
+                      {rev.comment}
+                    </p>
                   )}
                 </li>
               ))}

@@ -10,6 +10,7 @@ import {
   ListFilter,
   Bookmark,
   Plus,
+  Check,
 } from "lucide-react";
 import type {
   Booth,
@@ -256,6 +257,7 @@ export function BoothDetail({
                 const soldOutCount = st?.soldOutCount ?? 0;
                 const ratingAvg = st?.ratingAvg ?? 0;
                 const ratingCount = st?.ratingCount ?? 0;
+                const hasReviewed = st?.hasReviewed ?? false;
                 const isWanted = wantedKeys.has(tasting.id);
 
                 return (
@@ -291,6 +293,12 @@ export function BoothDetail({
                       {/* 1행: 보틀명 + 가격 + 화살표 */}
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex min-w-0 items-center gap-1.5">
+                          {hasReviewed && (
+                            <Check
+                              className="h-3.5 w-3.5 shrink-0 text-emerald-400/80"
+                              aria-label="평가 완료"
+                            />
+                          )}
                           {tasting.isUserContributed && (
                             <span className="shrink-0 rounded bg-sky-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-sky-300">
                               제보
@@ -300,6 +308,8 @@ export function BoothDetail({
                             className={`truncate text-sm font-medium ${
                               isSoldOut
                                 ? "text-stone-400 line-through"
+                                : hasReviewed
+                                ? "text-stone-400 group-hover:text-amber-200"
                                 : "text-stone-100 group-hover:text-amber-200"
                             }`}
                           >
@@ -307,7 +317,11 @@ export function BoothDetail({
                           </span>
                         </div>
                         <div className="flex shrink-0 items-center gap-1.5">
-                          <span className="rounded bg-stone-800/90 px-2 py-0.5 text-xs font-semibold text-amber-300">
+                          <span
+                            className={`rounded bg-stone-800/90 px-2 py-0.5 text-xs font-semibold ${
+                              hasReviewed ? "text-stone-400" : "text-amber-300"
+                            }`}
+                          >
                             {tasting.priceLabel}
                           </span>
                           <ChevronRight className="h-4 w-4 text-stone-500 group-hover:text-amber-300" />
@@ -359,6 +373,7 @@ export function BoothDetail({
                 const soldOutCount = st?.soldOutCount ?? 0;
                 const ratingAvg = st?.ratingAvg ?? 0;
                 const ratingCount = st?.ratingCount ?? 0;
+                const hasReviewed = st?.hasReviewed ?? false;
                 const isWanted = wantedKeys.has(bottle.id);
 
                 return (
@@ -394,6 +409,12 @@ export function BoothDetail({
                       {/* 1행: 보틀명 + 가격 + 화살표 */}
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex min-w-0 items-center gap-1.5">
+                          {hasReviewed && (
+                            <Check
+                              className="h-3.5 w-3.5 shrink-0 text-emerald-400/80"
+                              aria-label="평가 완료"
+                            />
+                          )}
                           {bottle.isUserContributed && (
                             <span className="shrink-0 rounded bg-sky-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-sky-300">
                               제보
@@ -403,6 +424,8 @@ export function BoothDetail({
                             className={`truncate text-sm font-medium ${
                               isSoldOut
                                 ? "text-stone-400 line-through"
+                                : hasReviewed
+                                ? "text-stone-400 group-hover:text-amber-200"
                                 : "text-stone-100 group-hover:text-amber-200"
                             }`}
                           >
@@ -410,7 +433,11 @@ export function BoothDetail({
                           </span>
                         </div>
                         <div className="flex shrink-0 items-center gap-1.5">
-                          <span className="text-sm font-bold text-amber-300">
+                          <span
+                            className={`text-sm font-bold ${
+                              hasReviewed ? "text-stone-400" : "text-amber-300"
+                            }`}
+                          >
                             {bottle.price > 0
                               ? `${bottle.price.toLocaleString("ko-KR")}원`
                               : bottle.price === 0
@@ -632,6 +659,7 @@ export function BoothDetail({
                   const soldOutCount = st?.soldOutCount ?? 0;
                   const ratingAvg = st?.ratingAvg ?? 0;
                   const ratingCount = st?.ratingCount ?? 0;
+                  const hasReviewed = st?.hasReviewed ?? false;
                   const isWanted = wantedKeys.has(entry.item.id);
 
                   return (
@@ -673,6 +701,12 @@ export function BoothDetail({
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex min-w-0 items-center gap-1.5">
+                            {hasReviewed && (
+                              <Check
+                                className="h-3.5 w-3.5 shrink-0 text-emerald-400/80"
+                                aria-label="평가 완료"
+                              />
+                            )}
                             <span className="shrink-0 rounded bg-[#8b303e] px-1.5 py-0.5 text-[10px] font-extrabold text-white">
                               {entry.booth.code}
                             </span>
@@ -689,6 +723,8 @@ export function BoothDetail({
                               className={`truncate text-sm font-medium ${
                                 isSoldOut
                                   ? "text-stone-400 line-through"
+                                  : hasReviewed
+                                  ? "text-stone-400 group-hover:text-amber-200"
                                   : "text-stone-100 group-hover:text-amber-200"
                               }`}
                             >
@@ -697,7 +733,11 @@ export function BoothDetail({
                           </div>
 
                           <div className="flex shrink-0 items-center gap-1.5">
-                            <span className="text-xs font-bold text-amber-300">
+                            <span
+                              className={`text-xs font-bold ${
+                                hasReviewed ? "text-stone-400" : "text-amber-300"
+                              }`}
+                            >
                               {entry.priceDisplay}
                             </span>
                             <ChevronRight className="h-4 w-4 text-stone-500 group-hover:text-amber-300" />

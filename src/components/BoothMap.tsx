@@ -58,6 +58,10 @@ export function BoothMap({
     );
   }
 
+  const matchedBooths = normalizedQuery
+    ? booths.filter((b) => isBoothMatched(b))
+    : [];
+
   return (
     <section className="rounded-2xl border border-amber-900/40 bg-[#181411] p-4 shadow-lg">
       {/* 상단 헤더 & 검색/필터 */}
@@ -134,6 +138,48 @@ export function BoothMap({
           </button>
         </div>
       </div>
+
+      {/* 검색 결과 빠른 선택 바 (검색어 입력 시에만 표시) */}
+      {normalizedQuery.length > 0 && (
+        <div className="mb-3 rounded-xl border border-emerald-700/40 bg-emerald-950/20 px-3 py-2">
+          <div className="mb-1.5 flex items-center justify-between text-[11px] text-emerald-300">
+            <span>검색 결과 ({matchedBooths.length}개)</span>
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              className="text-stone-400 hover:text-stone-200"
+            >
+              검색 초기화
+            </button>
+          </div>
+          {matchedBooths.length === 0 ? (
+            <p className="text-xs text-stone-400">일치하는 부스가 없습니다.</p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {matchedBooths.map((booth) => {
+                const isSelected = booth.id === selectedBoothId;
+                return (
+                  <button
+                    key={booth.id}
+                    type="button"
+                    onClick={() => onSelectBooth(booth.id)}
+                    className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition ${
+                      isSelected
+                        ? "border-amber-400 bg-amber-500/20 text-amber-200"
+                        : "border-emerald-600/40 bg-stone-900/90 text-stone-200 hover:border-emerald-400 hover:text-emerald-200"
+                    }`}
+                  >
+                    <span className="font-extrabold text-emerald-300">
+                      {booth.code}
+                    </span>
+                    <span className="max-w-[140px] truncate">{booth.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 원본 도면 스타일 인터랙티브 SVG 맵 */}
       <div className="overflow-x-auto rounded-xl border border-stone-700 bg-[#fcfaf8] shadow-inner">

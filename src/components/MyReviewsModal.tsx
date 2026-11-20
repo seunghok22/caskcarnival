@@ -165,7 +165,12 @@ export function MyReviewsModal({
       const title = meta
         ? `[${meta.booth.code}] ${meta.name} (${meta.booth.name})`
         : rev.reviewKey;
-      const stars = "★".repeat(rev.rating) + "☆".repeat(5 - rev.rating);
+      const fullStars = Math.floor(rev.rating);
+      const hasHalf = rev.rating - fullStars >= 0.5;
+      const stars =
+        "★".repeat(fullStars) +
+        (hasHalf ? "½" : "") +
+        "☆".repeat(Math.max(0, 5 - fullStars - (hasHalf ? 1 : 0)));
 
       lines.push(`${index + 1}. ${title}`);
 
@@ -304,16 +309,16 @@ export function MyReviewsModal({
                         </span>
                       </div>
                       <div className="flex shrink-0 items-center gap-1 text-xs font-bold text-amber-300">
-                        <span>{"★".repeat(rev.rating)}</span>
-                        <span className="text-[11px] text-stone-300">
-                          {rev.rating}점
-                        </span>
+                        <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                        <span>{Number(rev.rating).toFixed(1)}점</span>
                         <ChevronRight className="h-3.5 w-3.5 text-stone-500 group-hover:text-amber-300" />
                       </div>
                     </div>
 
                     {rev.comment ? (
-                      <p className="text-xs text-stone-200">{rev.comment}</p>
+                      <p className="whitespace-pre-line break-words text-xs text-stone-200">
+                        {rev.comment}
+                      </p>
                     ) : (
                       <p className="text-[11px] text-stone-500">
                         (한줄평 없음)

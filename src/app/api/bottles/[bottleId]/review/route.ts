@@ -33,16 +33,22 @@ export async function POST(
     const comment =
       typeof body.comment === "string" ? body.comment.trim() : "";
 
-    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    const isHalfStep =
+      Number.isFinite(rating) &&
+      rating >= 0.5 &&
+      rating <= 5 &&
+      Math.abs(rating * 2 - Math.round(rating * 2)) < 1e-9;
+
+    if (!isHalfStep) {
       return NextResponse.json(
-        { error: "평점은 1~5 사이의 정수여야 합니다." },
+        { error: "평점은 0.5~5.0 사이의 0.5점 단위여야 합니다." },
         { status: 400 }
       );
     }
 
-    if (comment.length > 100) {
+    if (comment.length > 200) {
       return NextResponse.json(
-        { error: "한줄평은 100자 이내로 작성해 주세요." },
+        { error: "한줄평은 200자 이내로 작성해 주세요." },
         { status: 400 }
       );
     }

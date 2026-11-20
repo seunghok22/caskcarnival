@@ -108,6 +108,39 @@ export async function POST(req: Request) {
       patch.note = note;
     }
 
+    // 빈 가격 보완 (판매 보틀 가격 미정 또는 시음 현장 문의)
+    if (raw.price !== undefined && raw.price !== null && String(raw.price).trim() !== "") {
+      const baseHasPrice = base && "price" in base && base.price >= 0;
+      if (!baseHasPrice) {
+        const digits = String(raw.price).replace(/[^0-9]/g, "");
+        if (digits) {
+          const priceNum = Number(digits);
+          if (Number.isFinite(priceNum) && priceNum >= 0 && priceNum <= 100_000_000) {
+            patch.price = Math.round(priceNum);
+          }
+        }
+      }
+    }
+
+    const rawPriceLabel = cleanField(raw.priceLabel, 40);
+    if (rawPriceLabel) {
+      const baseHasLabel =
+        base &&
+        "priceLabel" in base &&
+        base.priceLabel &&
+        base.priceLabel !== "현장 문의";
+      if (!baseHasLabel) {
+        const stripped = rawPriceLabel.replace(/,/g, "");
+        if (/^\d+$/.test(stripped)) {
+          const num = Number(stripped);
+          patch.priceLabel =
+            num === 0 ? "무료 시음" : `${num.toLocaleString("ko-KR")}원`;
+        } else {
+          patch.priceLabel = rawPriceLabel;
+        }
+      }
+    }
+
     if (Object.keys(patch).length === 0) {
       return NextResponse.json(
         { error: "채울 수 있는 빈 정보 항목이 없습니다." },
