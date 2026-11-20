@@ -21,6 +21,11 @@ export type SelectedDetailItem =
   | { kind: "bottle"; item: BottleItem }
   | { kind: "tasting"; item: TastingItem };
 
+export interface ReviewedItemMeta {
+  itemId: string;
+  quantity: number;
+}
+
 const WANTED_STORAGE_KEY = "cask_wanted";
 const REVIEWED_ITEMS_STORAGE_KEY = "cask_reviewed_items";
 
@@ -84,7 +89,7 @@ export function FestivalApp() {
   const [refreshing, setRefreshing] = useState(false);
   const [wantedKeys, setWantedKeys] = useState<Set<string>>(() => new Set());
   const [reviewedItemMap, setReviewedItemMap] = useState<
-    Record<string, string>
+    Record<string, ReviewedItemMeta>
   >({});
 
   useEffect(() => {
@@ -100,7 +105,25 @@ export function FestivalApp() {
       if (savedReviewed) {
         const parsed = JSON.parse(savedReviewed);
         if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-          setReviewedItemMap(parsed as Record<string, string>);
+          const normalized: Record<string, ReviewedItemMeta> = {};
+          for (const [k, v] of Object.entries(
+            parsed as Record<string, unknown>
+          )) {
+            if (typeof v === "string") {
+              normalized[k] = { itemId: v, quantity: 1 };
+            } else if (
+              v &&
+              typeof v === "object" &&
+              typeof (v as { itemId?: unknown }).itemId === "string"
+            ) {
+              const qty = Number((v as { quantity?: unknown }).quantity ?? 1);
+              normalized[k] = {
+                itemId: (v as { itemId: string }).itemId,
+                quantity: Number.isFinite(qty) && qty >= 1 ? Math.floor(qty) : 1,
+              };
+            }
+          }
+          setReviewedItemMap(normalized);
         }
       }
     } catch {
@@ -249,10 +272,11 @@ export function FestivalApp() {
     });
   }
 
-  function handleReviewSubmitted(itemId: string) {
+  function handleReviewSubmitted(itemId: string, quantity: number) {
     const rKey = getReviewKey(itemId);
+    const safeQty = Math.max(1, Math.min(99, Math.floor(quantity) || 1));
     setReviewedItemMap((prev) => {
-      const next = { ...prev, [rKey]: itemId };
+      const next = { ...prev, [rKey]: { itemId, quantity: safeQty } };
       try {
         localStorage.setItem(REVIEWED_ITEMS_STORAGE_KEY, JSON.stringify(next));
       } catch {
@@ -335,8 +359,10 @@ export function FestivalApp() {
       if (countedReviewKeys.has(rKey)) continue;
       countedReviewKeys.add(rKey);
 
-      const chosenItemId = reviewedItemMap[rKey] ?? itemId;
-      sum += itemPriceMap[chosenItemId] ?? 0;
+      const meta = reviewedItemMap[rKey];
+      const chosenItemId = meta?.itemId ?? itemId;
+      const qty = meta?.quantity ?? 1;
+      sum += (itemPriceMap[chosenItemId] ?? 0) * qty;
     }
 
     return sum;
@@ -408,8 +434,8 @@ export function FestivalApp() {
           status={statuses[selectedDetail.item.id]}
           isWanted={wantedKeys.has(selectedDetail.item.id)}
           onToggleWanted={() => handleToggleWanted(selectedDetail.item.id)}
-          onReviewSubmitted={() =>
-            handleReviewSubmitted(selectedDetail.item.id)
+          onReviewSubmitted={(quantity) =>
+            handleReviewSubmitted(selectedDetail.item.id, quantity)
           }
           onReviewDeleted={() => handleReviewDeleted(selectedDetail.item.id)}
           onPatchApplied={handlePatchApplied}

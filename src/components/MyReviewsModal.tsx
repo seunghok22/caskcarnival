@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Star, ChevronRight } from "lucide-react";
+import { X, Star, ChevronRight, Copy, Check } from "lucide-react";
 import { getReviewKey } from "@/data/booths";
 import type { Booth } from "@/types/festival";
+import type { ReviewedItemMeta } from "./FestivalApp";
 
 interface MyReviewApiItem {
   reviewKey: string;
@@ -14,7 +15,7 @@ interface MyReviewApiItem {
 
 interface MyReviewsModalProps {
   booths: Booth[];
-  reviewedItemMap: Record<string, string>;
+  reviewedItemMap: Record<string, ReviewedItemMeta>;
   onSelectEntry: (
     boothId: string,
     kind: "tasting" | "bottle",
@@ -32,6 +33,7 @@ export function MyReviewsModal({
   const [reviews, setReviews] = useState<MyReviewApiItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -58,7 +60,9 @@ export function MyReviewsModal({
   }, []);
 
   function resolveMeta(reviewKey: string) {
-    const preferredId = reviewedItemMap[reviewKey];
+    const savedMeta = reviewedItemMap[reviewKey];
+    const preferredId = savedMeta?.itemId;
+    const quantity = savedMeta?.quantity ?? 1;
     for (const booth of booths) {
       if (preferredId) {
         const b = booth.bottles.find((x) => x.id === preferredId);
@@ -68,7 +72,14 @@ export function MyReviewsModal({
             kind: "bottle" as const,
             itemId: b.id,
             name: b.name,
+            quantity,
             priceText: `${b.price.toLocaleString("ko-KR")}원`,
+            distillery: b.distillery && b.distillery !== "-" ? b.distillery : undefined,
+            abv: b.abv && b.abv !== "-" ? b.abv : undefined,
+            cask: b.cask,
+            age: b.age,
+            vintage: b.vintage,
+            whiskybaseUrl: b.whiskybaseUrl,
           };
         }
         const t = booth.tastings.find((x) => x.id === preferredId);
@@ -78,7 +89,14 @@ export function MyReviewsModal({
             kind: "tasting" as const,
             itemId: t.id,
             name: t.name,
+            quantity,
             priceText: t.priceLabel,
+            distillery: t.distillery,
+            abv: t.abv && t.abv !== "-" ? t.abv : undefined,
+            cask: t.cask,
+            age: t.age,
+            vintage: t.vintage,
+            whiskybaseUrl: t.whiskybaseUrl,
           };
         }
       }
@@ -90,7 +108,17 @@ export function MyReviewsModal({
           kind: "bottle" as const,
           itemId: bMatch.id,
           name: bMatch.name,
+          quantity,
           priceText: `${bMatch.price.toLocaleString("ko-KR")}원`,
+          distillery:
+            bMatch.distillery && bMatch.distillery !== "-"
+              ? bMatch.distillery
+              : undefined,
+          abv: bMatch.abv && bMatch.abv !== "-" ? bMatch.abv : undefined,
+          cask: bMatch.cask,
+          age: bMatch.age,
+          vintage: bMatch.vintage,
+          whiskybaseUrl: bMatch.whiskybaseUrl,
         };
       }
       const tMatch = booth.tastings.find((x) => getReviewKey(x.id) === reviewKey);
@@ -100,31 +128,129 @@ export function MyReviewsModal({
           kind: "tasting" as const,
           itemId: tMatch.id,
           name: tMatch.name,
+          quantity,
           priceText: tMatch.priceLabel,
+          distillery: tMatch.distillery,
+          abv: tMatch.abv && tMatch.abv !== "-" ? tMatch.abv : undefined,
+          cask: tMatch.cask,
+          age: tMatch.age,
+          vintage: tMatch.vintage,
+          whiskybaseUrl: tMatch.whiskybaseUrl,
         };
       }
     }
     return null;
   }
 
+  async function handleCopyText() {
+    if (reviews.length === 0) return;
+
+    const lines: string[] = [
+      `[Cask Carnival 2026 내 평가 기록 (총 ${reviews.length}건)]`,
+      "",
+    ];
+
+    reviews.forEach((rev, index) => {
+      const meta = resolveMeta(rev.reviewKey);
+      const title = meta
+        ? `[${meta.booth.code}] ${meta.name} (${meta.booth.name})`
+        : rev.reviewKey;
+      const stars = "★".repeat(rev.rating) + "☆".repeat(5 - rev.rating);
+
+      lines.push(`${index + 1}. ${title}`);
+
+      if (meta) {
+        const specs: string[] = [];
+        if (meta.distillery) specs.push(`증류소: ${meta.distillery}`);
+        if (meta.abv) specs.push(`도수: ${meta.abv}`);
+        if (meta.cask) specs.push(`캐스크: ${meta.cask}`);
+        if (meta.age) specs.push(`숙성기간: ${meta.age}`);
+        if (meta.vintage) specs.push(`빈티지: ${meta.vintage}`);
+        if (specs.length > 0) {
+          lines.push(`   ${specs.join(" | ")}`);
+        }
+      }
+
+      const qtyPart =
+        meta && meta.quantity > 1 ? ` × ${meta.quantity}` : "";
+      const pricePart = meta?.priceText
+        ? `가격: ${meta.priceText}${qtyPart} | `
+        : "";
+      lines.push(`   ${pricePart}평점: ${stars} (${rev.rating}점)`);
+      if (rev.comment) {
+        lines.push(`   한줄평: ${rev.comment}`);
+      }
+      if (meta?.whiskybaseUrl) {
+        lines.push(`   Whiskybase: ${meta.whiskybaseUrl}`);
+      }
+      lines.push("");
+    });
+
+    const text = lines.join("\n").trim();
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError("클립보드 복사에 실패했습니다.");
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:p-4">
       <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-t-2xl border border-amber-900/40 bg-[#181411] p-5 shadow-2xl sm:rounded-2xl">
-        <div className="flex items-center justify-between border-b border-stone-800 pb-3.5">
+        <div className="flex items-center justify-between gap-2 border-b border-stone-800 pb-3.5">
           <div className="flex items-center gap-2">
             <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
             <h3 className="text-base font-bold text-amber-50">
               내 평가 모아보기 ({reviews.length})
             </h3>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-stone-400 hover:bg-stone-800 hover:text-stone-100"
-            aria-label="닫기"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            {reviews.length > 0 && (
+              <button
+                type="button"
+                onClick={handleCopyText}
+                className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition ${
+                  copied
+                    ? "border-emerald-500/60 bg-emerald-500/20 text-emerald-200"
+                    : "border-stone-700 bg-stone-900 text-stone-200 hover:border-amber-400 hover:text-amber-200"
+                }`}
+              >
+                {copied ? (
+                  <>
+                    <Check className="h-3.5 w-3.5" />
+                    <span>복사됨</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-3.5 w-3.5" />
+                    <span>텍스트 복사</span>
+                  </>
+                )}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg p-1.5 text-stone-400 hover:bg-stone-800 hover:text-stone-100"
+              aria-label="닫기"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
         <div className="mt-4">
@@ -187,7 +313,9 @@ export function MyReviewsModal({
                     <div className="flex items-center justify-between text-[10px] text-stone-500">
                       <span>
                         {meta
-                          ? `${meta.booth.name} · ${meta.priceText}`
+                          ? `${meta.booth.name} · ${meta.priceText}${
+                              meta.quantity > 1 ? ` × ${meta.quantity}` : ""
+                            }`
                           : ""}
                       </span>
                       <span>

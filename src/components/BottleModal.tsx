@@ -21,7 +21,7 @@ interface BottleModalProps {
   status?: BottleDynamicStatus;
   isWanted: boolean;
   onToggleWanted: () => void;
-  onReviewSubmitted: () => void;
+  onReviewSubmitted: (quantity: number) => void;
   onReviewDeleted: () => void;
   onPatchApplied: (itemId: string, patch: ItemPatch) => void;
   onCustomItemDeleted: (itemId: string) => void;
@@ -45,6 +45,7 @@ export function BottleModal({
 }: BottleModalProps) {
   const { kind, item } = detail;
   const [rating, setRating] = useState<number>(5);
+  const [quantity, setQuantity] = useState<number>(1);
   const [comment, setComment] = useState<string>("");
   const [submittingReview, setSubmittingReview] = useState(false);
   const [deletingReview, setDeletingReview] = useState(false);
@@ -233,8 +234,9 @@ export function BottleModal({
       }
 
       localStorage.setItem(localReviewKey, "1");
-      onReviewSubmitted();
+      onReviewSubmitted(quantity);
       setComment("");
+      setQuantity(1);
       setFeedback({
         type: "success",
         text: "평점과 한줄평이 등록되었습니다.",
@@ -723,25 +725,61 @@ export function BottleModal({
             </div>
           ) : (
             <>
-              <div className="mb-3 flex items-center gap-1.5">
-                {[1, 2, 3, 4, 5].map((score) => (
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5">
+                  {[1, 2, 3, 4, 5].map((score) => (
+                    <button
+                      key={score}
+                      type="button"
+                      onClick={() => setRating(score)}
+                      className="p-1"
+                      aria-label={`${score}점`}
+                    >
+                      <Star
+                        className={`h-6 w-6 transition ${
+                          score <= rating
+                            ? "fill-amber-400 text-amber-400"
+                            : "text-stone-600"
+                        }`}
+                      />
+                    </button>
+                  ))}
+                  <span className="ml-1 text-xs text-stone-300">{rating}점</span>
+                </div>
+
+                <div className="flex items-center gap-1.5 text-xs text-stone-300">
+                  <span className="text-stone-400">수량</span>
                   <button
-                    key={score}
                     type="button"
-                    onClick={() => setRating(score)}
-                    className="p-1"
-                    aria-label={`${score}점`}
+                    onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                    className="h-7 w-7 rounded-lg border border-stone-700 bg-stone-950 font-bold text-stone-200 hover:border-amber-500"
+                    aria-label="수량 감소"
                   >
-                    <Star
-                      className={`h-6 w-6 transition ${
-                        score <= rating
-                          ? "fill-amber-400 text-amber-400"
-                          : "text-stone-600"
-                      }`}
-                    />
+                    -
                   </button>
-                ))}
-                <span className="ml-2 text-xs text-stone-300">{rating}점</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={99}
+                    value={quantity}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      if (Number.isFinite(v)) {
+                        setQuantity(Math.max(1, Math.min(99, Math.floor(v))));
+                      }
+                    }}
+                    className="h-7 w-11 rounded-lg border border-stone-700 bg-stone-950 text-center text-xs font-semibold text-stone-100 focus:border-amber-500 focus:outline-none"
+                    aria-label="구매 수량"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setQuantity((q) => Math.min(99, q + 1))}
+                    className="h-7 w-7 rounded-lg border border-stone-700 bg-stone-950 font-bold text-stone-200 hover:border-amber-500"
+                    aria-label="수량 증가"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
 
               <div className="flex gap-2">
