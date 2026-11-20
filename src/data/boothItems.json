@@ -1582,40 +1582,275 @@
       {
         "id": "t-D06-1",
         "name": "여사제 흑 & 백",
+        "distillery": "Kavalan",
         "abv": "-",
-        "note": "현장 시음",
+        "note": "현장 유료 잔술 시음 (가격 미공개)",
         "priceLabel": "현장 문의"
       },
       {
         "id": "t-D06-2",
         "name": "오마르 장기 시리즈 피티드 몰트 버번 캐스크",
+        "distillery": "Omar",
         "abv": "-",
-        "note": "현장 시음",
+        "cask": "Bourbon Cask",
+        "note": "오마르 사(士)·포(包) 시리즈",
         "priceLabel": "현장 문의"
       },
       {
         "id": "t-D06-3",
         "name": "오마르 장기 시리즈 버진오크",
+        "distillery": "Omar",
         "abv": "-",
-        "note": "현장 시음",
+        "cask": "Virgin Oak",
+        "note": "오마르 사(士)·포(包) 시리즈",
         "priceLabel": "현장 문의"
       },
       {
         "id": "t-D06-4",
         "name": "대만 백악산 시리즈 대패첨산",
         "abv": "-",
-        "note": "현장 시음",
+        "note": "현장 유료 잔술 시음 (가격 미공개)",
         "priceLabel": "현장 문의"
       },
       {
         "id": "t-D06-5",
         "name": "대만 백악산 시리즈 설산",
         "abv": "-",
-        "note": "현장 시음",
+        "note": "현장 유료 잔술 시음 (가격 미공개)",
+        "priceLabel": "현장 문의"
+      },
+      {
+        "id": "t-D06-6",
+        "name": "펜더린 모스카텔",
+        "distillery": "Penderyn",
+        "abv": "-",
+        "cask": "Moscatel",
+        "note": "현장 유료 잔술 시음 (가격 미공개)",
+        "priceLabel": "현장 문의"
+      },
+      {
+        "id": "t-D06-7",
+        "name": "펜더린 P.X 셰리",
+        "distillery": "Penderyn",
+        "abv": "-",
+        "cask": "PX Sherry",
+        "note": "현장 유료 잔술 시음 (가격 미공개)",
+        "priceLabel": "현장 문의"
+      },
+      {
+        "id": "t-D06-8",
+        "name": "펜더린 루비 포트",
+        "distillery": "Penderyn",
+        "abv": "-",
+        "cask": "Ruby Port",
+        "note": "현장 유료 잔술 시음 (가격 미공개)",
+        "priceLabel": "현장 문의"
+      },
+      {
+        "id": "t-D06-9",
+        "name": "카발란 비숍",
+        "distillery": "Kavalan",
+        "abv": "-",
+        "note": "현장 유료 잔술 시음 (가격 미공개)",
+        "priceLabel": "현장 문의"
+      },
+      {
+        "id": "t-D06-10",
+        "name": "쿨일라 16년",
+        "distillery": "Caol Ila",
+        "abv": "-",
+        "age": "16년",
+        "note": "현장 유료 잔술 시음 (가격 미공개)",
+        "priceLabel": "현장 문의"
+      },
+      {
+        "id": "t-D06-11",
+        "name": "딘스턴 14년",
+        "distillery": "Deanston",
+        "abv": "-",
+        "age": "14년",
+        "note": "현장 유료 잔술 시음 (가격 미공개)",
+        "priceLabel": "현장 문의"
+      },
+      {
+        "id": "t-D06-12",
+        "name": "라프로익 14년",
+        "distillery": "Laphroaig",
+        "abv": "-",
+        "age": "14년",
+        "note": "현장 유료 잔술 시음 (가격 미공개)",
+        "priceLabel": "현장 문의"
+      },
+      {
+        "id": "t-D06-13",
+        "name": "카발란 더 매지션",
+        "distillery": "Kavalan",
+        "abv": "-",
+        "note": "현장 유료 잔술 시음 (가격 미공개)",
+        "priceLabel": "현장 문의"
+      },
+      {
+        "id": "t-D06-14",
+        "name": "카발란 여사제 흑",
+        "distillery": "Kavalan",
+        "abv": "-",
+        "note": "현장 유료 잔술 시음 (가격 미공개)",
+        "priceLabel": "현장 문의"
+      },
+      {
+        "id": "t-D06-15",
+        "name": "카발란 여사제 백",
+        "distillery": "Kavalan",
+        "abv": "-",
+        "note": "현장 유료 잔술 시음 (가격 미공개)",
         "priceLabel": "현장 문의"
       }
     ],
-    "bottles": []
+    "bottles": [
+      {
+        "id": "b-D06-1",
+        "name": "대만 백악산 시리즈 대패첨산",
+        "distillery": "-",
+        "abv": "-",
+        "volume": "700ml",
+        "price": 180000,
+        "note": "현장 구매 할인가 (병당 10,000원 할인 적용)"
+      },
+      {
+        "id": "b-D06-2",
+        "name": "대만 백악산 시리즈 설산",
+        "distillery": "-",
+        "abv": "-",
+        "volume": "700ml",
+        "price": 180000,
+        "note": "현장 구매 할인가 (병당 10,000원 할인 적용)"
+      },
+      {
+        "id": "b-D06-3",
+        "name": "펜더린 모스카텔",
+        "distillery": "Penderyn",
+        "abv": "-",
+        "cask": "Moscatel",
+        "volume": "700ml",
+        "price": 265000,
+        "note": "현장 구매 할인가"
+      },
+      {
+        "id": "b-D06-4",
+        "name": "펜더린 P.X 셰리",
+        "distillery": "Penderyn",
+        "abv": "-",
+        "cask": "PX Sherry",
+        "volume": "700ml",
+        "price": 265000,
+        "note": "현장 구매 할인가"
+      },
+      {
+        "id": "b-D06-5",
+        "name": "펜더린 루비 포트",
+        "distillery": "Penderyn",
+        "abv": "-",
+        "cask": "Ruby Port",
+        "volume": "700ml",
+        "price": 265000,
+        "note": "현장 구매 할인가"
+      },
+      {
+        "id": "b-D06-6",
+        "name": "카발란 비숍",
+        "distillery": "Kavalan",
+        "abv": "-",
+        "volume": "700ml",
+        "price": 320000,
+        "note": "현장 구매 할인가"
+      },
+      {
+        "id": "b-D06-7",
+        "name": "오마르 장기 시리즈 피티드 몰트 버번 캐스크",
+        "distillery": "Omar",
+        "abv": "-",
+        "cask": "Bourbon Cask",
+        "volume": "700ml",
+        "price": 350000,
+        "note": "오마르 사(士)·포(包) 각 350,000원 (현장 할인가)"
+      },
+      {
+        "id": "b-D06-8",
+        "name": "오마르 장기 시리즈 버진오크",
+        "distillery": "Omar",
+        "abv": "-",
+        "cask": "Virgin Oak",
+        "volume": "700ml",
+        "price": 350000,
+        "note": "오마르 사(士)·포(包) 각 350,000원 (현장 할인가)"
+      },
+      {
+        "id": "b-D06-9",
+        "name": "쿨일라 16년",
+        "distillery": "Caol Ila",
+        "abv": "-",
+        "age": "16년",
+        "volume": "700ml",
+        "price": 320000,
+        "note": "현장 구매 할인가"
+      },
+      {
+        "id": "b-D06-10",
+        "name": "딘스턴 14년",
+        "distillery": "Deanston",
+        "abv": "-",
+        "age": "14년",
+        "volume": "700ml",
+        "price": 265000,
+        "note": "현장 구매 할인가"
+      },
+      {
+        "id": "b-D06-11",
+        "name": "라프로익 14년",
+        "distillery": "Laphroaig",
+        "abv": "-",
+        "age": "14년",
+        "volume": "700ml",
+        "price": 265000,
+        "note": "현장 구매 할인가"
+      },
+      {
+        "id": "b-D06-12",
+        "name": "카발란 더 매지션",
+        "distillery": "Kavalan",
+        "abv": "-",
+        "volume": "700ml",
+        "price": 390000,
+        "note": "현장 구매 할인가"
+      },
+      {
+        "id": "b-D06-13",
+        "name": "카발란 여사제 흑",
+        "distillery": "Kavalan",
+        "abv": "-",
+        "volume": "700ml",
+        "price": 380000,
+        "note": "현장 구매 할인가"
+      },
+      {
+        "id": "b-D06-14",
+        "name": "카발란 여사제 백",
+        "distillery": "Kavalan",
+        "abv": "-",
+        "volume": "700ml",
+        "price": 380000,
+        "note": "현장 구매 할인가"
+      },
+      {
+        "id": "b-D06-15",
+        "name": "여사제 흑 & 백 세트",
+        "distillery": "Kavalan",
+        "abv": "-",
+        "volume": "2병 세트",
+        "price": 750000,
+        "note": "현장 구매 할인가 (현금/카드 동일)"
+      }
+    ]
   },
   "D07": {
     "tastings": [
