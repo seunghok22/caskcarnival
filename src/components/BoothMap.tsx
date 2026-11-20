@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Search, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
+import { Search, ZoomIn, ZoomOut, RotateCcw, RefreshCw } from "lucide-react";
 import type { Booth, BoothZone } from "@/types/festival";
 
 interface BoothMapProps {
@@ -9,6 +9,8 @@ interface BoothMapProps {
   selectedBoothId: string;
   onSelectBooth: (boothId: string) => void;
   wantedKeys: Set<string>;
+  onRefresh: () => void;
+  refreshing: boolean;
 }
 
 const ZONE_FILTERS: { label: string; value: BoothZone | "ALL" }[] = [
@@ -28,6 +30,8 @@ export function BoothMap({
   selectedBoothId,
   onSelectBooth,
   wantedKeys,
+  onRefresh,
+  refreshing,
 }: BoothMapProps) {
   const [activeZone, setActiveZone] = useState<BoothZone | "ALL">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
@@ -438,7 +442,7 @@ export function BoothMap({
         </div>
       </div>
 
-      {/* 현재 선택/호버된 부스 요약 바 */}
+      {/* 현재 선택/호버된 부스 요약 바 + 수동 새로고침 */}
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/20 bg-stone-900/90 px-3.5 py-2.5">
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-md bg-[#8b303e] px-2 py-0.5 text-xs font-extrabold text-white">
@@ -451,6 +455,19 @@ export function BoothMap({
             {previewBooth.nameEn}
           </span>
         </div>
+
+        <button
+          type="button"
+          disabled={refreshing}
+          onClick={onRefresh}
+          title="최신 매진·평점·제보 정보 새로고침"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-stone-700 bg-stone-800/90 px-2.5 py-1 text-xs font-semibold text-stone-200 transition hover:border-amber-500/50 hover:text-amber-200 disabled:opacity-60"
+        >
+          <RefreshCw
+            className={`h-3.5 w-3.5 ${refreshing ? "animate-spin text-amber-300" : ""}`}
+          />
+          <span>{refreshing ? "불러오는 중..." : "새로고침"}</span>
+        </button>
       </div>
     </section>
   );

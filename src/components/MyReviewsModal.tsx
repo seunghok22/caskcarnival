@@ -1,0 +1,211 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { X, Star, ChevronRight } from "lucide-react";
+import { getReviewKey } from "@/data/booths";
+import type { Booth } from "@/types/festival";
+
+interface MyReviewApiItem {
+  reviewKey: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+}
+
+interface MyReviewsModalProps {
+  booths: Booth[];
+  reviewedItemMap: Record<string, string>;
+  onSelectEntry: (
+    boothId: string,
+    kind: "tasting" | "bottle",
+    itemId: string
+  ) => void;
+  onClose: () => void;
+}
+
+export function MyReviewsModal({
+  booths,
+  reviewedItemMap,
+  onSelectEntry,
+  onClose,
+}: MyReviewsModalProps) {
+  const [reviews, setReviews] = useState<MyReviewApiItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/reviews/mine", { cache: "no-store" })
+      .then((res) => {
+        if (!res.ok) throw new Error("fetch failed");
+        return res.json();
+      })
+      .then((data) => {
+        if (active && Array.isArray(data.reviews)) {
+          setReviews(data.reviews as MyReviewApiItem[]);
+        }
+      })
+      .catch(() => {
+        if (active) setError("내 평가 목록을 불러오지 못했습니다.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  function resolveMeta(reviewKey: string) {
+    const preferredId = reviewedItemMap[reviewKey];
+    for (const booth of booths) {
+      if (preferredId) {
+        const b = booth.bottles.find((x) => x.id === preferredId);
+        if (b) {
+          return {
+            booth,
+            kind: "bottle" as const,
+            itemId: b.id,
+            name: b.name,
+            priceText: `${b.price.toLocaleString("ko-KR")}원`,
+          };
+        }
+        const t = booth.tastings.find((x) => x.id === preferredId);
+        if (t) {
+          return {
+            booth,
+            kind: "tasting" as const,
+            itemId: t.id,
+            name: t.name,
+            priceText: t.priceLabel,
+          };
+        }
+      }
+
+      const bMatch = booth.bottles.find((x) => getReviewKey(x.id) === reviewKey);
+      if (bMatch) {
+        return {
+          booth,
+          kind: "bottle" as const,
+          itemId: bMatch.id,
+          name: bMatch.name,
+          priceText: `${bMatch.price.toLocaleString("ko-KR")}원`,
+        };
+      }
+      const tMatch = booth.tastings.find((x) => getReviewKey(x.id) === reviewKey);
+      if (tMatch) {
+        return {
+          booth,
+          kind: "tasting" as const,
+          itemId: tMatch.id,
+          name: tMatch.name,
+          priceText: tMatch.priceLabel,
+        };
+      }
+    }
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+      <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-t-2xl border border-amber-900/40 bg-[#181411] p-5 shadow-2xl sm:rounded-2xl">
+        <div className="flex items-center justify-between border-b border-stone-800 pb-3.5">
+          <div className="flex items-center gap-2">
+            <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+            <h3 className="text-base font-bold text-amber-50">
+              내 평가 모아보기 ({reviews.length})
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-stone-400 hover:bg-stone-800 hover:text-stone-100"
+            aria-label="닫기"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="mt-4">
+          {loading ? (
+            <div className="py-8 text-center text-xs text-stone-400">
+              불러오는 중...
+            </div>
+          ) : error ? (
+            <div className="rounded-xl border border-rose-800/60 bg-rose-950/30 p-4 text-center text-xs text-rose-200">
+              {error}
+            </div>
+          ) : reviews.length === 0 ? (
+            <div className="rounded-xl border border-stone-800/80 bg-stone-900/50 p-6 text-center text-xs text-stone-400">
+              아직 작성한 평가가 없습니다. 시음하거나 구매한 보틀에 평점과 한줄평을 남겨보세요!
+            </div>
+          ) : (
+            <div className="divide-y divide-stone-800/80 overflow-hidden rounded-xl border border-stone-800 bg-stone-900/40">
+              {reviews.map((rev) => {
+                const meta = resolveMeta(rev.reviewKey);
+                return (
+                  <button
+                    key={rev.reviewKey}
+                    type="button"
+                    onClick={() => {
+                      if (meta) {
+                        onSelectEntry(meta.booth.id, meta.kind, meta.itemId);
+                        onClose();
+                      }
+                    }}
+                    className="group flex w-full flex-col gap-1.5 px-3.5 py-3 text-left transition hover:bg-stone-800/60"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        {meta && (
+                          <span className="shrink-0 rounded bg-[#8b303e] px-1.5 py-0.5 text-[10px] font-extrabold text-white">
+                            {meta.booth.code}
+                          </span>
+                        )}
+                        <span className="truncate text-sm font-semibold text-stone-100 group-hover:text-amber-200">
+                          {meta ? meta.name : rev.reviewKey}
+                        </span>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1 text-xs font-bold text-amber-300">
+                        <span>{"★".repeat(rev.rating)}</span>
+                        <span className="text-[11px] text-stone-300">
+                          {rev.rating}점
+                        </span>
+                        <ChevronRight className="h-3.5 w-3.5 text-stone-500 group-hover:text-amber-300" />
+                      </div>
+                    </div>
+
+                    {rev.comment ? (
+                      <p className="text-xs text-stone-200">{rev.comment}</p>
+                    ) : (
+                      <p className="text-[11px] text-stone-500">
+                        (한줄평 없음)
+                      </p>
+                    )}
+
+                    <div className="flex items-center justify-between text-[10px] text-stone-500">
+                      <span>
+                        {meta
+                          ? `${meta.booth.name} · ${meta.priceText}`
+                          : ""}
+                      </span>
+                      <span>
+                        {new Date(rev.createdAt).toLocaleString("ko-KR", {
+                          month: "numeric",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

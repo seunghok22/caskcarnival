@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Star } from "lucide-react";
 import { BOOTHS, getReviewKey, getSharedReviewItemIds } from "@/data/booths";
 import type {
   Booth,
@@ -14,6 +15,7 @@ import { BoothMap } from "./BoothMap";
 import { BoothDetail } from "./BoothDetail";
 import { BottleModal } from "./BottleModal";
 import { AddItemModal } from "./AddItemModal";
+import { MyReviewsModal } from "./MyReviewsModal";
 
 export type SelectedDetailItem =
   | { kind: "bottle"; item: BottleItem }
@@ -72,12 +74,14 @@ export function FestivalApp() {
   const [addModalKind, setAddModalKind] = useState<
     "tasting" | "bottle" | null
   >(null);
+  const [showMyReviews, setShowMyReviews] = useState(false);
 
   const [statuses, setStatuses] = useState<Record<string, BottleDynamicStatus>>(
     {}
   );
   const [patches, setPatches] = useState<Record<string, ItemPatch>>({});
   const [customItems, setCustomItems] = useState<CustomBoothItem[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
   const [wantedKeys, setWantedKeys] = useState<Set<string>>(() => new Set());
   const [reviewedItemMap, setReviewedItemMap] = useState<
     Record<string, string>
@@ -104,23 +108,24 @@ export function FestivalApp() {
     }
   }, []);
 
-  useEffect(() => {
-    let active = true;
-    fetch("/api/bottles/status")
-      .then((res) => res.json())
-      .then((data) => {
-        if (!active) return;
-        if (data.statuses) setStatuses(data.statuses);
-        if (data.patches) setPatches(data.patches);
-        if (Array.isArray(data.customItems)) setCustomItems(data.customItems);
-      })
-      .catch((err) => {
-        console.error("Failed to fetch bottle statuses:", err);
-      });
+  async function fetchDashboardData() {
+    setRefreshing(true);
+    try {
+      const res = await fetch("/api/bottles/status", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.statuses) setStatuses(data.statuses);
+      if (data.patches) setPatches(data.patches);
+      if (Array.isArray(data.customItems)) setCustomItems(data.customItems);
+    } catch (err) {
+      console.error("Failed to fetch bottle statuses:", err);
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
-    return () => {
-      active = false;
-    };
+  useEffect(() => {
+    void fetchDashboardData();
   }, []);
 
   // 정적 부스 데이터 + Redis 패치(빈 정보 보완) + 유저 제보 제품 병합
@@ -346,6 +351,14 @@ export function FestivalApp() {
           </h1>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs">
+          <button
+            type="button"
+            onClick={() => setShowMyReviews(true)}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-stone-700 bg-stone-900/90 px-3 py-1.5 font-semibold text-stone-200 transition hover:border-amber-400 hover:text-amber-200"
+          >
+            <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+            <span>내 평가 보기</span>
+          </button>
           <div className="flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-1.5">
             <span className="text-stone-300">찜 합계</span>
             <span className="font-bold text-amber-300">
@@ -367,6 +380,8 @@ export function FestivalApp() {
         selectedBoothId={selectedBooth.id}
         onSelectBooth={setSelectedBoothId}
         wantedKeys={wantedKeys}
+        onRefresh={fetchDashboardData}
+        refreshing={refreshing}
       />
 
       {/* 2. 하단 부스 상세 & 번호순 전체 목록 */}
@@ -411,6 +426,19 @@ export function FestivalApp() {
           defaultKind={addModalKind}
           onClose={() => setAddModalKind(null)}
           onItemAdded={handleCustomItemAdded}
+        />
+      )}
+
+      {/* 5. 내 평가 모아보기 모달 */}
+      {showMyReviews && (
+        <MyReviewsModal
+          booths={mergedBooths}
+          reviewedItemMap={reviewedItemMap}
+          onSelectEntry={(boothId, kind, itemId) => {
+            setSelectedBoothId(boothId);
+            setSelectedRef({ kind, id: itemId });
+          }}
+          onClose={() => setShowMyReviews(false)}
         />
       )}
     </main>

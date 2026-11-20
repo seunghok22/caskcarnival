@@ -1,4 +1,5 @@
-import { Redis } from "@upstash/redis";
+import { Redis as UpstashRedis } from "@upstash/redis";
+import IoRedis from "ioredis";
 import { ALL_ITEM_IDS, getReviewKey } from "@/data/booths";
 import type {
   BottleDynamicStatus,
@@ -45,8 +46,36 @@ interface MemoryStore {
   contribCounts: Map<string, number>;
 }
 
+interface RedisAdapter {
+  get(key: string): Promise<unknown>;
+  set(
+    key: string,
+    value: string,
+    opts?: { nx?: boolean; ex?: number }
+  ): Promise<boolean>;
+  del(key: string): Promise<number>;
+  incr(key: string): Promise<number>;
+  expire(key: string, seconds: number): Promise<void>;
+  sadd(key: string, member: string): Promise<number>;
+  srem(key: string, member: string): Promise<number>;
+  scard(key: string): Promise<number>;
+  sismember(key: string, member: string): Promise<number>;
+  exists(key: string): Promise<number>;
+  hget(key: string, field: string): Promise<unknown>;
+  hset(key: string, field: string, value: string | number): Promise<void>;
+  hdel(key: string, field: string): Promise<void>;
+  hgetall(key: string): Promise<Record<string, unknown>>;
+  hexists(key: string, field: string): Promise<number>;
+  lrange(key: string, start: number, stop: number): Promise<unknown[]>;
+  lpush(key: string, value: string): Promise<void>;
+  ltrim(key: string, start: number, stop: number): Promise<void>;
+  lset(key: string, index: number, value: string): Promise<void>;
+  lrem(key: string, count: number, value: string): Promise<void>;
+}
+
 const globalForStore = globalThis as unknown as {
   __caskMemoryStore?: MemoryStore;
+  __caskIoRedis?: IoRedis;
 };
 
 function getMemoryStore(): MemoryStore {
@@ -65,19 +94,153 @@ function getMemoryStore(): MemoryStore {
   return globalForStore.__caskMemoryStore;
 }
 
-const redisUrl =
-  process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-const redisToken =
-  process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+function createIoRedisAdapter(url: string): RedisAdapter {
+  if (!globalForStore.__caskIoRedis) {
+    globalForStore.__caskIoRedis = new IoRedis(url, {
+      maxRetriesPerRequest: 2,
+      connectTimeout: 5000,
+      enableReadyCheck: false,
+      lazyConnect: false,
+    });
+  }
+  const client = globalForStore.__caskIoRedis;
 
-const redis =
-  redisUrl && redisToken
-    ? new Redis({ url: redisUrl, token: redisToken })
-    : null;
+  return {
+    get: (k) => client.get(k),
+    async set(k, v, opts) {
+      if (opts?.nx && opts?.ex) {
+        const res = await client.set(k, v, "EX", opts.ex, "NX");
+        return res === "OK";
+      }
+      if (opts?.ex) {
+        const res = await client.set(k, v, "EX", opts.ex);
+        return res === "OK";
+      }
+      if (opts?.nx) {
+        const res = await client.set(k, v, "NX");
+        return res === "OK";
+      }
+      const res = await client.set(k, v);
+      return res === "OK";
+    },
+    del: (k) => client.del(k),
+    incr: (k) => client.incr(k),
+    async expire(k, sec) {
+      await client.expire(k, sec);
+    },
+    sadd: (k, m) => client.sadd(k, m),
+    srem: (k, m) => client.srem(k, m),
+    scard: (k) => client.scard(k),
+    sismember: (k, m) => client.sismember(k, m),
+    exists: (k) => client.exists(k),
+    hget: (k, f) => client.hget(k, f),
+    async hset(k, f, v) {
+      await client.hset(k, f, String(v));
+    },
+    async hdel(k, f) {
+      await client.hdel(k, f);
+    },
+    async hgetall(k) {
+      return (await client.hgetall(k)) ?? {};
+    },
+    hexists: (k, f) => client.hexists(k, f),
+    lrange: (k, start, stop) => client.lrange(k, start, stop),
+    async lpush(k, v) {
+      await client.lpush(k, v);
+    },
+    async ltrim(k, start, stop) {
+      await client.ltrim(k, start, stop);
+    },
+    async lset(k, idx, v) {
+      await client.lset(k, idx, v);
+    },
+    async lrem(k, count, v) {
+      await client.lrem(k, count, v);
+    },
+  };
+}
+
+function createUpstashAdapter(url: string, token: string): RedisAdapter {
+  const client = new UpstashRedis({ url, token });
+  return {
+    get: (k) => client.get<unknown>(k),
+    async set(k, v, opts) {
+      if (opts?.nx && opts?.ex) {
+        const res = await client.set(k, v, { nx: true, ex: opts.ex });
+        return Boolean(res);
+      }
+      if (opts?.ex) {
+        const res = await client.set(k, v, { ex: opts.ex });
+        return Boolean(res);
+      }
+      if (opts?.nx) {
+        const res = await client.set(k, v, { nx: true });
+        return Boolean(res);
+      }
+      const res = await client.set(k, v);
+      return Boolean(res);
+    },
+    del: (k) => client.del(k),
+    incr: (k) => client.incr(k),
+    async expire(k, sec) {
+      await client.expire(k, sec);
+    },
+    sadd: (k, m) => client.sadd(k, m),
+    srem: (k, m) => client.srem(k, m),
+    scard: (k) => client.scard(k),
+    sismember: (k, m) => client.sismember(k, m),
+    exists: (k) => client.exists(k),
+    hget: (k, f) => client.hget<unknown>(k, f),
+    async hset(k, f, v) {
+      await client.hset(k, { [f]: v });
+    },
+    async hdel(k, f) {
+      await client.hdel(k, f);
+    },
+    async hgetall(k) {
+      return ((await client.hgetall<Record<string, unknown>>(k)) ?? {}) as Record<
+        string,
+        unknown
+      >;
+    },
+    hexists: (k, f) => client.hexists(k, f),
+    lrange: (k, start, stop) => client.lrange<unknown>(k, start, stop),
+    async lpush(k, v) {
+      await client.lpush(k, v);
+    },
+    async ltrim(k, start, stop) {
+      await client.ltrim(k, start, stop);
+    },
+    async lset(k, idx, v) {
+      await client.lset(k, idx, v);
+    },
+    async lrem(k, count, v) {
+      await client.lrem(k, count, v);
+    },
+  };
+}
+
+function getRedisClient(): RedisAdapter | null {
+  // 1순위: 직접 설치한 Redis (OCI 등) — REDIS_URL
+  if (process.env.REDIS_URL) {
+    return createIoRedisAdapter(process.env.REDIS_URL);
+  }
+  // 2순위: Upstash Redis REST
+  const upstashUrl =
+    process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const upstashToken =
+    process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+  if (upstashUrl && upstashToken) {
+    return createUpstashAdapter(upstashUrl, upstashToken);
+  }
+  return null;
+}
+
+const redis = getRedisClient();
 
 if (!redis && process.env.NODE_ENV !== "production") {
   console.warn(
-    "[caskcarnival] UPSTASH_REDIS_REST_URL/TOKEN 미설정: 로컬 메모리 폴백 모드로 동작합니다."
+    "[caskcarnival] REDIS_URL / UPSTASH_REDIS_REST_URL 미설정: 로컬 메모리 폴백 모드로 동작합니다."
   );
 }
 
@@ -119,7 +282,7 @@ function toPublicReviews(
 
 async function getUserState(uid: string): Promise<UserState> {
   if (!redis) return { voted: [], reviewed: [] };
-  const raw = await redis.get<unknown>(`user:state:${uid}`);
+  const raw = await redis.get(`user:state:${uid}`);
   const parsed = parseJsonSafe<UserState>(raw);
   return {
     voted: Array.isArray(parsed?.voted) ? parsed.voted : [],
@@ -195,44 +358,36 @@ export async function getBottleStatus(
     };
   }
 
-  const pipeline = redis.pipeline();
-  pipeline.scard(`soldout:voters:${bottleId}`);
-  pipeline.hget<unknown>("summary:ratings", reviewKey);
-  pipeline.lrange<unknown>(`reviews:${reviewKey}`, 0, 29);
+  const [soldOutCount, ratingRaw, rawReviews, hasVotedNum, hasReviewedNum] =
+    await Promise.all([
+      redis.scard(`soldout:voters:${bottleId}`),
+      redis.hget("summary:ratings", reviewKey),
+      redis.lrange(`reviews:${reviewKey}`, 0, 29),
+      uid ? redis.sismember(`soldout:voters:${bottleId}`, uid) : Promise.resolve(0),
+      uid ? redis.exists(`review:lock:${reviewKey}:${uid}`) : Promise.resolve(0),
+    ]);
 
-  if (uid) {
-    pipeline.sismember(`soldout:voters:${bottleId}`, uid);
-    pipeline.exists(`review:lock:${reviewKey}:${uid}`);
-  }
-
-  const results = await pipeline.exec();
-  const soldOutCount = Number(results[0] ?? 0);
-  const ratingObj = parseJsonSafe<RatingSummary>(results[1]) ?? {
+  const ratingObj = parseJsonSafe<RatingSummary>(ratingRaw) ?? {
     sum: 0,
     count: 0,
   };
   const sum = Math.max(0, Number(ratingObj.sum ?? 0));
   const count = Math.max(0, Number(ratingObj.count ?? 0));
-  const rawReviews = (results[2] as unknown[]) ?? [];
-
-  const hasVotedSoldOut = uid ? Number(results[3] ?? 0) === 1 : false;
-  const hasReviewed = uid ? Number(results[4] ?? 0) === 1 : false;
 
   return {
     bottleId,
-    soldOutCount,
-    isSoldOut: soldOutCount >= SOLD_OUT_THRESHOLD,
+    soldOutCount: Number(soldOutCount ?? 0),
+    isSoldOut: Number(soldOutCount ?? 0) >= SOLD_OUT_THRESHOLD,
     ratingAvg: count > 0 ? Number((sum / count).toFixed(1)) : 0,
     ratingCount: count,
-    reviews: toPublicReviews(rawReviews, uid),
-    hasVotedSoldOut,
-    hasReviewed,
+    reviews: toPublicReviews(rawReviews ?? [], uid),
+    hasVotedSoldOut: Number(hasVotedNum ?? 0) === 1,
+    hasReviewed: Number(hasReviewedNum ?? 0) === 1,
   };
 }
 
 /**
- * 초기 페이지 로드용 초경량 통합 조회
- * Upstash Redis 커맨드 수를 1,475회 -> 단 5회로 대폭 절감합니다.
+ * 초기 페이지 로드용 초경량 통합 조회 (단 5개 Redis 커맨드)
  */
 export async function getInitialDashboardData(uid: string | null): Promise<{
   statuses: Record<string, BottleDynamicStatus>;
@@ -262,26 +417,19 @@ export async function getInitialDashboardData(uid: string | null): Promise<{
     };
   }
 
-  const pipeline = redis.pipeline();
-  pipeline.hgetall<Record<string, unknown>>("summary:soldout");
-  pipeline.hgetall<Record<string, unknown>>("summary:ratings");
-  pipeline.hgetall<Record<string, unknown>>("patch:items:all");
-  pipeline.hgetall<Record<string, unknown>>("custom:items:all");
-  if (uid) {
-    pipeline.get<unknown>(`user:state:${uid}`);
-  }
+  const [rawSoldOut, rawRatings, rawPatches, rawCustom, userStateRaw] =
+    await Promise.all([
+      redis.hgetall("summary:soldout"),
+      redis.hgetall("summary:ratings"),
+      redis.hgetall("patch:items:all"),
+      redis.hgetall("custom:items:all"),
+      uid ? redis.get(`user:state:${uid}`) : Promise.resolve(null),
+    ]);
 
-  const results = await pipeline.exec();
-  const rawSoldOut = (results[0] as Record<string, unknown> | null) ?? {};
-  const rawRatings = (results[1] as Record<string, unknown> | null) ?? {};
-  const rawPatches = (results[2] as Record<string, unknown> | null) ?? {};
-  const rawCustom = (results[3] as Record<string, unknown> | null) ?? {};
-  const userStateRaw = uid ? results[4] : null;
   const userState = parseJsonSafe<UserState>(userStateRaw) ?? {
     voted: [],
     reviewed: [],
   };
-
   const votedSet = new Set(userState.voted ?? []);
   const reviewedSet = new Set(userState.reviewed ?? []);
 
@@ -362,7 +510,7 @@ export async function voteSoldOut(
   const added = await redis.sadd(`soldout:voters:${bottleId}`, uid);
   if (added > 0) {
     const count = await redis.scard(`soldout:voters:${bottleId}`);
-    await redis.hset("summary:soldout", { [bottleId]: count });
+    await redis.hset("summary:soldout", bottleId, count);
     await updateUserState(uid, (st) => ({
       ...st,
       voted: Array.from(new Set([...st.voted, bottleId])),
@@ -393,7 +541,7 @@ export async function cancelSoldOutVote(
   if (removed > 0) {
     const count = await redis.scard(`soldout:voters:${bottleId}`);
     if (count > 0) {
-      await redis.hset("summary:soldout", { [bottleId]: count });
+      await redis.hset("summary:soldout", bottleId, count);
     } else {
       await redis.hdel("summary:soldout", bottleId);
     }
@@ -462,10 +610,7 @@ export async function addBottleReview(
     };
   }
 
-  const existingRatingRaw = await redis.hget<unknown>(
-    "summary:ratings",
-    reviewKey
-  );
+  const existingRatingRaw = await redis.hget("summary:ratings", reviewKey);
   const prev = parseJsonSafe<RatingSummary>(existingRatingRaw) ?? {
     sum: 0,
     count: 0,
@@ -475,13 +620,11 @@ export async function addBottleReview(
     count: Math.max(0, Number(prev.count ?? 0)) + 1,
   };
 
-  const pipeline = redis.pipeline();
-  pipeline.hset("summary:ratings", {
-    [reviewKey]: JSON.stringify(nextRating),
-  });
-  pipeline.lpush(`reviews:${reviewKey}`, JSON.stringify(review));
-  pipeline.ltrim(`reviews:${reviewKey}`, 0, 49);
-  await pipeline.exec();
+  await Promise.all([
+    redis.hset("summary:ratings", reviewKey, JSON.stringify(nextRating)),
+    redis.lpush(`reviews:${reviewKey}`, JSON.stringify(review)),
+  ]);
+  await redis.ltrim(`reviews:${reviewKey}`, 0, 49);
 
   await updateUserState(uid, (st) => ({
     ...st,
@@ -530,7 +673,7 @@ export async function deleteBottleReview(
     };
   }
 
-  const rawList = await redis.lrange<unknown>(`reviews:${reviewKey}`, 0, 49);
+  const rawList = await redis.lrange(`reviews:${reviewKey}`, 0, 49);
   const targetIndices: number[] = [];
   let totalRemovedRating = 0;
 
@@ -554,12 +697,7 @@ export async function deleteBottleReview(
     };
   }
 
-  // Upstash 자동 역직렬화 시 LREM 문자열 불일치 문제를 방지하기 위해
-  // LSET 센티널 마킹 후 LREM으로 1회 클릭에 확실하게 제거합니다.
-  const existingRatingRaw = await redis.hget<unknown>(
-    "summary:ratings",
-    reviewKey
-  );
+  const existingRatingRaw = await redis.hget("summary:ratings", reviewKey);
   const prev = parseJsonSafe<RatingSummary>(existingRatingRaw) ?? {
     sum: 0,
     count: 0,
@@ -570,20 +708,20 @@ export async function deleteBottleReview(
       ? 0
       : Math.max(0, Number(prev.sum ?? 0) - totalRemovedRating);
 
-  const pipeline = redis.pipeline();
   for (const idx of targetIndices) {
-    pipeline.lset(`reviews:${reviewKey}`, idx, DELETED_SENTINEL);
+    await redis.lset(`reviews:${reviewKey}`, idx, DELETED_SENTINEL);
   }
-  pipeline.lrem(`reviews:${reviewKey}`, 0, DELETED_SENTINEL);
-  if (nextCount === 0) {
-    pipeline.hdel("summary:ratings", reviewKey);
-  } else {
-    pipeline.hset("summary:ratings", {
-      [reviewKey]: JSON.stringify({ sum: nextSum, count: nextCount }),
-    });
-  }
-  pipeline.del(`review:lock:${reviewKey}:${uid}`);
-  await pipeline.exec();
+  await Promise.all([
+    redis.lrem(`reviews:${reviewKey}`, 0, DELETED_SENTINEL),
+    nextCount === 0
+      ? redis.hdel("summary:ratings", reviewKey)
+      : redis.hset(
+          "summary:ratings",
+          reviewKey,
+          JSON.stringify({ sum: nextSum, count: nextCount })
+        ),
+    redis.del(`review:lock:${reviewKey}:${uid}`),
+  ]);
 
   await updateUserState(uid, (st) => ({
     ...st,
@@ -642,7 +780,7 @@ export async function saveItemPatch(
     return merged;
   }
 
-  const existingRaw = await redis.hget<unknown>("patch:items:all", itemId);
+  const existingRaw = await redis.hget("patch:items:all", itemId);
   const prev = parseJsonSafe<ItemPatch>(existingRaw) ?? {};
 
   const merged: ItemPatch = { ...prev };
@@ -655,7 +793,7 @@ export async function saveItemPatch(
     }
   }
 
-  await redis.hset("patch:items:all", { [itemId]: JSON.stringify(merged) });
+  await redis.hset("patch:items:all", itemId, JSON.stringify(merged));
   return merged;
 }
 
@@ -680,7 +818,7 @@ export async function addCustomItem(
   if (!redis) {
     getMemoryStore().customItems.set(id, stored);
   } else {
-    await redis.hset("custom:items:all", { [id]: JSON.stringify(stored) });
+    await redis.hset("custom:items:all", id, JSON.stringify(stored));
   }
 
   const { authorUid: _removed, ...publicItem } = stored;
@@ -702,11 +840,67 @@ export async function deleteCustomItem(
     return { deleted: true };
   }
 
-  const raw = await redis.hget<unknown>("custom:items:all", itemId);
+  const raw = await redis.hget("custom:items:all", itemId);
   const parsed = parseJsonSafe<StoredCustomItem>(raw);
   if (!parsed) return { deleted: false, reason: "not_found" };
   if (parsed.authorUid !== uid) return { deleted: false, reason: "forbidden" };
 
   await redis.hdel("custom:items:all", itemId);
   return { deleted: true };
+}
+
+export interface MyReviewEntry {
+  reviewKey: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+}
+
+export async function getMyReviews(uid: string): Promise<MyReviewEntry[]> {
+  if (!redis) {
+    const store = getMemoryStore();
+    const list: MyReviewEntry[] = [];
+    for (const [reviewKey, reviews] of store.reviews.entries()) {
+      const mine = reviews.find((r) => r.authorUid === uid);
+      if (mine) {
+        list.push({
+          reviewKey,
+          rating: mine.rating,
+          comment: mine.comment,
+          createdAt: mine.createdAt,
+        });
+      }
+    }
+    list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return list;
+  }
+
+  const userState = await getUserState(uid);
+  const reviewedKeys = userState.reviewed ?? [];
+  if (reviewedKeys.length === 0) return [];
+
+  const lists = await Promise.all(
+    reviewedKeys.map((key) => redis.lrange(`reviews:${key}`, 0, 49))
+  );
+
+  const result: MyReviewEntry[] = [];
+  reviewedKeys.forEach((reviewKey, idx) => {
+    const rawList = lists[idx] ?? [];
+    for (const item of rawList) {
+      if (item === DELETED_SENTINEL) continue;
+      const parsed = parseJsonSafe<StoredReview>(item);
+      if (parsed && parsed.authorUid === uid) {
+        result.push({
+          reviewKey,
+          rating: parsed.rating,
+          comment: parsed.comment,
+          createdAt: parsed.createdAt,
+        });
+        break;
+      }
+    }
+  });
+
+  result.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return result;
 }
