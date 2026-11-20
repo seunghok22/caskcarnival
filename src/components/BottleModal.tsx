@@ -11,19 +11,27 @@ import {
   Trash2,
   Bookmark,
   Pencil,
+  PlusCircle,
 } from "lucide-react";
-import type { BottleDynamicStatus, ItemPatch } from "@/types/festival";
-import { getReviewKey } from "@/data/booths";
+import type {
+  BottleDynamicStatus,
+  CustomBoothItem,
+  ItemPatch,
+} from "@/types/festival";
 import type { SelectedDetailItem } from "./FestivalApp";
 
 interface BottleModalProps {
   detail: SelectedDetailItem;
+  boothCode: string;
+  hasOppositeListing: boolean;
+  effectiveReviewKey: string;
   status?: BottleDynamicStatus;
   isWanted: boolean;
   onToggleWanted: () => void;
   onReviewSubmitted: (quantity: number) => void;
   onReviewDeleted: () => void;
   onPatchApplied: (itemId: string, patch: ItemPatch) => void;
+  onOppositeItemAdded: (created: CustomBoothItem) => void;
   onCustomItemDeleted: (itemId: string) => void;
   onClose: () => void;
   onStatusUpdated: (updated: BottleDynamicStatus) => void;
@@ -33,12 +41,16 @@ const SOLD_OUT_THRESHOLD = 20;
 
 export function BottleModal({
   detail,
+  boothCode,
+  hasOppositeListing,
+  effectiveReviewKey,
   status,
   isWanted,
   onToggleWanted,
   onReviewSubmitted,
   onReviewDeleted,
   onPatchApplied,
+  onOppositeItemAdded,
   onCustomItemDeleted,
   onClose,
   onStatusUpdated,
@@ -58,8 +70,12 @@ export function BottleModal({
   const [patchCask, setPatchCask] = useState("");
   const [patchAge, setPatchAge] = useState("");
   const [patchVintage, setPatchVintage] = useState("");
+  const [patchPeated, setPatchPeated] = useState("");
   const [patchWhiskybase, setPatchWhiskybase] = useState("");
   const [patchPrice, setPatchPrice] = useState("");
+  const [showOppositeForm, setShowOppositeForm] = useState(false);
+  const [oppositePrice, setOppositePrice] = useState("");
+  const [submittingOpposite, setSubmittingOpposite] = useState(false);
   const [feedback, setFeedback] = useState<{
     type: "success" | "error";
     text: string;
@@ -89,6 +105,7 @@ export function BottleModal({
   const missingCask = !item.cask;
   const missingAge = !item.age;
   const missingVintage = !item.vintage;
+  const missingPeated = !item.peated;
   const missingWhiskybase = !item.whiskybaseUrl;
   const missingPrice =
     kind === "bottle"
@@ -100,10 +117,11 @@ export function BottleModal({
     missingCask ||
     missingAge ||
     missingVintage ||
+    missingPeated ||
     missingWhiskybase ||
     missingPrice;
 
-  const reviewKey = getReviewKey(item.id);
+  const reviewKey = effectiveReviewKey;
   const localSoldOutKey = `cask_soldout_${item.id}`;
   const localReviewKey = `cask_review_${reviewKey}`;
   const hasLocalSoldOut =
@@ -323,6 +341,7 @@ export function BottleModal({
             cask: missingCask ? patchCask : undefined,
             age: missingAge ? patchAge : undefined,
             vintage: missingVintage ? patchVintage : undefined,
+            peated: missingPeated ? patchPeated : undefined,
             whiskybaseUrl: missingWhiskybase ? patchWhiskybase : undefined,
             price:
               missingPrice && kind === "bottle" ? patchPrice : undefined,
@@ -348,6 +367,7 @@ export function BottleModal({
       setPatchCask("");
       setPatchAge("");
       setPatchVintage("");
+      setPatchPeated("");
       setPatchWhiskybase("");
       setPatchPrice("");
       setFeedback({
@@ -361,6 +381,69 @@ export function BottleModal({
       });
     } finally {
       setSubmittingPatch(false);
+    }
+  }
+
+  async function handleAddOppositeListing(e: React.FormEvent) {
+    e.preventDefault();
+    if (submittingOpposite || hasOppositeListing) return;
+    setSubmittingOpposite(true);
+    setFeedback(null);
+
+    const targetKind = kind === "tasting" ? "bottle" : "tasting";
+
+    try {
+      const res = await fetch("/api/contributions/item", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          boothCode,
+          kind: targetKind,
+          name: item.name,
+          distillery:
+            item.distillery && item.distillery !== "-"
+              ? item.distillery
+              : undefined,
+          abv: item.abv && item.abv !== "-" ? item.abv : undefined,
+          cask: item.cask,
+          age: item.age,
+          vintage: item.vintage,
+          peated: item.peated,
+          whiskybaseUrl: item.whiskybaseUrl,
+          note:
+            item.note && item.note !== "현장 시음" ? item.note : undefined,
+          price: targetKind === "bottle" ? oppositePrice : undefined,
+          priceLabel: targetKind === "tasting" ? oppositePrice : undefined,
+          sharedReviewKey: effectiveReviewKey,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setFeedback({
+          type: "error",
+          text: data.error ?? "목록 추가에 실패했습니다.",
+        });
+        return;
+      }
+      if (data.item) {
+        onOppositeItemAdded(data.item as CustomBoothItem);
+      }
+      setShowOppositeForm(false);
+      setOppositePrice("");
+      setFeedback({
+        type: "success",
+        text:
+          targetKind === "bottle"
+            ? "판매 보틀 목록에도 추가되었습니다! (평점·한줄평·세부정보 공유)"
+            : "시음 목록에도 추가되었습니다! (평점·한줄평·세부정보 공유)",
+      });
+    } catch {
+      setFeedback({
+        type: "error",
+        text: "네트워크 오류가 발생했습니다.",
+      });
+    } finally {
+      setSubmittingOpposite(false);
     }
   }
 
@@ -444,8 +527,8 @@ export function BottleModal({
           <p className="mt-3 text-sm text-stone-300">{item.note}</p>
         )}
 
-        {/* 캐스크 / 빈티지 / 숙성기간 세부 스펙 */}
-        <div className="mt-3 grid grid-cols-3 gap-2">
+        {/* 캐스크 / 빈티지 / 숙성기간 / 피트 여부 세부 스펙 */}
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <div className="rounded-xl border border-stone-800/90 bg-stone-900/60 px-3 py-2">
             <div className="text-[10px] font-medium text-stone-400">
               캐스크 정보
@@ -468,6 +551,20 @@ export function BottleModal({
             </div>
             <div className="mt-0.5 truncate text-xs font-semibold text-stone-100">
               {item.age || "-"}
+            </div>
+          </div>
+          <div className="rounded-xl border border-stone-800/90 bg-stone-900/60 px-3 py-2">
+            <div className="text-[10px] font-medium text-stone-400">
+              피트 여부
+            </div>
+            <div
+              className={`mt-0.5 truncate text-xs font-semibold ${
+                item.peated && !item.peated.includes("논피트")
+                  ? "text-orange-300"
+                  : "text-stone-100"
+              }`}
+            >
+              {item.peated || "-"}
             </div>
           </div>
         </div>
@@ -527,6 +624,23 @@ export function BottleModal({
             </button>
           )}
 
+          {!hasOppositeListing && (
+            <button
+              type="button"
+              onClick={() => setShowOppositeForm((v) => !v)}
+              className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                showOppositeForm
+                  ? "border-emerald-400 bg-emerald-500/20 text-emerald-200"
+                  : "border-stone-700 bg-stone-900/80 text-stone-300 hover:border-emerald-500/50 hover:text-emerald-200"
+              }`}
+            >
+              <PlusCircle className="h-3.5 w-3.5" />
+              <span>
+                {kind === "tasting" ? "판매 보틀에도 추가" : "시음 목록에도 추가"}
+              </span>
+            </button>
+          )}
+
           {item.isUserContributed && item.isMine && (
             <button
               type="button"
@@ -539,6 +653,42 @@ export function BottleModal({
             </button>
           )}
         </div>
+
+        {/* 반대쪽 목록(판매 보틀 또는 시음 목록)에 추가 폼 */}
+        {showOppositeForm && !hasOppositeListing && (
+          <form
+            onSubmit={handleAddOppositeListing}
+            className="mt-3 rounded-xl border border-emerald-900/60 bg-emerald-950/20 p-3.5 text-xs"
+          >
+            <div className="mb-2 font-semibold text-emerald-200">
+              {kind === "tasting"
+                ? "이 제품을 판매 보틀 목록에도 추가합니다 (스펙·평점·한줄평 공유)"
+                : "이 제품을 시음 목록에도 추가합니다 (스펙·평점·한줄평 공유)"}
+            </div>
+            <div className="flex gap-2">
+              <input
+                type={kind === "tasting" ? "number" : "text"}
+                min={kind === "tasting" ? 0 : undefined}
+                maxLength={40}
+                value={oppositePrice}
+                onChange={(e) => setOppositePrice(e.target.value)}
+                placeholder={
+                  kind === "tasting"
+                    ? "판매 가격 (원, 선택 / 미입력 시 가격 미정)"
+                    : "시음 가격 (예: 5000 또는 무료 시음 / 미입력 시 현장 문의)"
+                }
+                className="flex-1 rounded-lg border border-stone-700 bg-stone-950 px-2.5 py-1.5 text-xs text-stone-100 placeholder:text-stone-500 focus:border-emerald-400 focus:outline-none"
+              />
+              <button
+                type="submit"
+                disabled={submittingOpposite}
+                className="shrink-0 rounded-lg bg-emerald-500 px-3.5 py-1.5 text-xs font-bold text-stone-950 hover:bg-emerald-400 disabled:opacity-50"
+              >
+                {submittingOpposite ? "추가 중..." : "추가"}
+              </button>
+            </div>
+          </form>
+        )}
 
         {/* 빈 정보 채우기 폼 (비어있는 필드만 노출) */}
         {showPatchForm && hasAnyMissingField && (
@@ -614,6 +764,19 @@ export function BottleModal({
                   placeholder="빈티지 (예: 2010)"
                   className="rounded-lg border border-stone-700 bg-stone-950 px-2.5 py-1.5 text-xs text-stone-100 placeholder:text-stone-500 focus:border-sky-400 focus:outline-none"
                 />
+              )}
+              {missingPeated && (
+                <select
+                  value={patchPeated}
+                  onChange={(e) => setPatchPeated(e.target.value)}
+                  className="rounded-lg border border-stone-700 bg-stone-950 px-2.5 py-1.5 text-xs text-stone-100 focus:border-sky-400 focus:outline-none"
+                >
+                  <option value="">피트 여부 (선택)</option>
+                  <option value="피트">피트 (Peated)</option>
+                  <option value="라이트 피트">라이트 피트 (Lightly Peated)</option>
+                  <option value="헤비 피트">헤비 피트 (Heavily Peated)</option>
+                  <option value="논피트">논피트 (Unpeated)</option>
+                </select>
               )}
             </div>
             {missingWhiskybase && (

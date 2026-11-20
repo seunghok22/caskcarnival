@@ -1,6 +1,10 @@
 import { Redis as UpstashRedis } from "@upstash/redis";
 import IoRedis from "ioredis";
-import { ALL_ITEM_IDS, getReviewKey } from "@/data/booths";
+import {
+  ALL_ITEM_IDS,
+  findStaticReviewKeyByName,
+  getReviewKey,
+} from "@/data/booths";
 import type {
   BottleDynamicStatus,
   CustomBoothItem,
@@ -44,6 +48,7 @@ interface MemoryStore {
   itemPatches: Map<string, ItemPatch>;
   customItems: Map<string, StoredCustomItem>;
   contribCounts: Map<string, number>;
+  oppositeLocks: Set<string>;
 }
 
 interface RedisAdapter {
@@ -89,6 +94,7 @@ function getMemoryStore(): MemoryStore {
       itemPatches: new Map(),
       customItems: new Map(),
       contribCounts: new Map(),
+      oppositeLocks: new Set(),
     };
   }
   return globalForStore.__caskMemoryStore;
@@ -329,6 +335,27 @@ export async function checkRelaxedIpRateLimit(ip: string): Promise<boolean> {
   return count <= RELAXED_IP_LIMIT_PER_MIN;
 }
 
+function resolveCustomItemSharedKey(
+  item: Pick<CustomBoothItem, "boothCode" | "name" | "sharedReviewKey">
+): string | undefined {
+  return (
+    item.sharedReviewKey || findStaticReviewKeyByName(item.boothCode, item.name)
+  );
+}
+
+async function resolveReviewKey(itemId: string): Promise<string> {
+  if (!itemId.startsWith("custom-")) {
+    return getReviewKey(itemId);
+  }
+  if (!redis) {
+    const found = getMemoryStore().customItems.get(itemId);
+    return (found && resolveCustomItemSharedKey(found)) || itemId;
+  }
+  const raw = await redis.hget("custom:items:all", itemId);
+  const parsed = parseJsonSafe<StoredCustomItem>(raw);
+  return (parsed && resolveCustomItemSharedKey(parsed)) || itemId;
+}
+
 /**
  * 단건 상세 조회 (모달 오픈 시 호출 — 한줄평 목록 포함)
  */
@@ -336,7 +363,7 @@ export async function getBottleStatus(
   bottleId: string,
   uid: string | null
 ): Promise<BottleDynamicStatus> {
-  const reviewKey = getReviewKey(bottleId);
+  const reviewKey = await resolveReviewKey(bottleId);
 
   if (!redis) {
     const store = getMemoryStore();
@@ -401,8 +428,10 @@ export async function getInitialDashboardData(uid: string | null): Promise<{
       store.customItems.values()
     ).map((item) => {
       const { authorUid, ...rest } = item;
+      const effectiveSharedKey = resolveCustomItemSharedKey(rest);
       return {
         ...rest,
+        sharedReviewKey: effectiveSharedKey,
         isMine: Boolean(uid && authorUid && authorUid === uid),
       };
     });
@@ -444,18 +473,27 @@ export async function getInitialDashboardData(uid: string | null): Promise<{
     const parsed = parseJsonSafe<StoredCustomItem>(val);
     if (!parsed) continue;
     const { authorUid, ...rest } = parsed;
+    const effectiveSharedKey = resolveCustomItemSharedKey(rest);
     customItems.push({
       ...rest,
+      sharedReviewKey: effectiveSharedKey,
       isMine: Boolean(uid && authorUid && authorUid === uid),
     });
   }
   customItems.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
+  const customReviewKeyMap = new Map<string, string>();
+  for (const c of customItems) {
+    if (c.sharedReviewKey) {
+      customReviewKeyMap.set(c.id, c.sharedReviewKey);
+    }
+  }
+
   const allIds = [...ALL_ITEM_IDS, ...customItems.map((c) => c.id)];
   const statuses: Record<string, BottleDynamicStatus> = {};
 
   for (const itemId of allIds) {
-    const reviewKey = getReviewKey(itemId);
+    const reviewKey = customReviewKeyMap.get(itemId) ?? getReviewKey(itemId);
     const soldOutCount = Math.max(0, Number(rawSoldOut[itemId] ?? 0));
     const ratingObj = parseJsonSafe<RatingSummary>(rawRatings[reviewKey]) ?? {
       sum: 0,
@@ -563,7 +601,7 @@ export async function addBottleReview(
   rating: number,
   comment: string
 ): Promise<{ alreadyReviewed: boolean; status: BottleDynamicStatus }> {
-  const reviewKey = getReviewKey(bottleId);
+  const reviewKey = await resolveReviewKey(bottleId);
   const review: StoredReview = {
     id: crypto.randomUUID(),
     rating,
@@ -641,7 +679,7 @@ export async function deleteBottleReview(
   bottleId: string,
   uid: string
 ): Promise<{ deleted: boolean; status: BottleDynamicStatus }> {
-  const reviewKey = getReviewKey(bottleId);
+  const reviewKey = await resolveReviewKey(bottleId);
 
   if (!redis) {
     const store = getMemoryStore();
@@ -766,34 +804,117 @@ export async function saveItemPatch(
   itemId: string,
   incoming: ItemPatch
 ): Promise<ItemPatch> {
-  function mergePatch(prev: ItemPatch): ItemPatch {
+  const reviewKey = await resolveReviewKey(itemId);
+
+  const sharedIncoming: ItemPatch = {};
+  if (incoming.distillery) sharedIncoming.distillery = incoming.distillery;
+  if (incoming.abv) sharedIncoming.abv = incoming.abv;
+  if (incoming.cask) sharedIncoming.cask = incoming.cask;
+  if (incoming.age) sharedIncoming.age = incoming.age;
+  if (incoming.vintage) sharedIncoming.vintage = incoming.vintage;
+  if (incoming.peated) sharedIncoming.peated = incoming.peated;
+  if (incoming.whiskybaseUrl) sharedIncoming.whiskybaseUrl = incoming.whiskybaseUrl;
+  if (incoming.note) sharedIncoming.note = incoming.note;
+
+  const priceIncoming: ItemPatch = {};
+  if (typeof incoming.price === "number") priceIncoming.price = incoming.price;
+  if (incoming.priceLabel) priceIncoming.priceLabel = incoming.priceLabel;
+
+  function mergeFields(prev: ItemPatch, patch: ItemPatch): ItemPatch {
     const merged: ItemPatch = { ...prev };
-    if (incoming.distillery && !merged.distillery) merged.distillery = incoming.distillery;
-    if (incoming.abv && !merged.abv) merged.abv = incoming.abv;
-    if (incoming.cask && !merged.cask) merged.cask = incoming.cask;
-    if (incoming.age && !merged.age) merged.age = incoming.age;
-    if (incoming.vintage && !merged.vintage) merged.vintage = incoming.vintage;
-    if (incoming.whiskybaseUrl && !merged.whiskybaseUrl) merged.whiskybaseUrl = incoming.whiskybaseUrl;
-    if (incoming.note && !merged.note) merged.note = incoming.note;
-    if (typeof incoming.price === "number" && merged.price === undefined) merged.price = incoming.price;
-    if (incoming.priceLabel && !merged.priceLabel) merged.priceLabel = incoming.priceLabel;
+    if (patch.distillery && !merged.distillery) merged.distillery = patch.distillery;
+    if (patch.abv && !merged.abv) merged.abv = patch.abv;
+    if (patch.cask && !merged.cask) merged.cask = patch.cask;
+    if (patch.age && !merged.age) merged.age = patch.age;
+    if (patch.vintage && !merged.vintage) merged.vintage = patch.vintage;
+    if (patch.peated && !merged.peated) merged.peated = patch.peated;
+    if (patch.whiskybaseUrl && !merged.whiskybaseUrl) merged.whiskybaseUrl = patch.whiskybaseUrl;
+    if (patch.note && !merged.note) merged.note = patch.note;
+    if (typeof patch.price === "number" && merged.price === undefined) merged.price = patch.price;
+    if (patch.priceLabel && !merged.priceLabel) merged.priceLabel = patch.priceLabel;
     return merged;
   }
+
+  const hasShared = Object.keys(sharedIncoming).length > 0;
+  const hasPrice = Object.keys(priceIncoming).length > 0;
 
   if (!redis) {
     const store = getMemoryStore();
-    const prev = store.itemPatches.get(itemId) ?? {};
-    const merged = mergePatch(prev);
-    store.itemPatches.set(itemId, merged);
+    if (reviewKey === itemId) {
+      const prev = store.itemPatches.get(itemId) ?? {};
+      const merged = mergeFields(prev, incoming);
+      store.itemPatches.set(itemId, merged);
+      return merged;
+    }
+
+    let mergedShared: ItemPatch = store.itemPatches.get(reviewKey) ?? {};
+    if (hasShared) {
+      mergedShared = mergeFields(mergedShared, sharedIncoming);
+      store.itemPatches.set(reviewKey, mergedShared);
+    }
+    let mergedOwn: ItemPatch = store.itemPatches.get(itemId) ?? {};
+    if (hasPrice) {
+      mergedOwn = mergeFields(mergedOwn, priceIncoming);
+      store.itemPatches.set(itemId, mergedOwn);
+    }
+    return {
+      ...mergedShared,
+      price: mergedOwn.price,
+      priceLabel: mergedOwn.priceLabel,
+    };
+  }
+
+  if (reviewKey === itemId) {
+    const existingRaw = await redis.hget("patch:items:all", itemId);
+    const prev = parseJsonSafe<ItemPatch>(existingRaw) ?? {};
+    const merged = mergeFields(prev, incoming);
+    await redis.hset("patch:items:all", itemId, JSON.stringify(merged));
     return merged;
   }
 
-  const existingRaw = await redis.hget("patch:items:all", itemId);
-  const prev = parseJsonSafe<ItemPatch>(existingRaw) ?? {};
-  const merged = mergePatch(prev);
+  // 공통 세부정보는 reviewKey에, 가격은 각 항목(itemId)에 독립 저장
+  const [sharedRaw, ownRaw] = await Promise.all([
+    hasShared ? redis.hget("patch:items:all", reviewKey) : Promise.resolve(null),
+    hasPrice ? redis.hget("patch:items:all", itemId) : Promise.resolve(null),
+  ]);
 
-  await redis.hset("patch:items:all", itemId, JSON.stringify(merged));
-  return merged;
+  const ops: Promise<void>[] = [];
+  let mergedShared = parseJsonSafe<ItemPatch>(sharedRaw) ?? {};
+  if (hasShared) {
+    mergedShared = mergeFields(mergedShared, sharedIncoming);
+    ops.push(redis.hset("patch:items:all", reviewKey, JSON.stringify(mergedShared)));
+  }
+
+  let mergedOwn = parseJsonSafe<ItemPatch>(ownRaw) ?? {};
+  if (hasPrice) {
+    mergedOwn = mergeFields(mergedOwn, priceIncoming);
+    ops.push(redis.hset("patch:items:all", itemId, JSON.stringify(mergedOwn)));
+  }
+
+  if (ops.length > 0) {
+    await Promise.all(ops);
+  }
+
+  return {
+    ...mergedShared,
+    price: mergedOwn.price,
+    priceLabel: mergedOwn.priceLabel,
+  };
+}
+
+export async function acquireOppositeLinkLock(
+  boothCode: string,
+  kind: "tasting" | "bottle",
+  sharedReviewKey: string
+): Promise<boolean> {
+  const lockKey = `custom:link:lock:${boothCode}:${kind}:${sharedReviewKey}`;
+  if (!redis) {
+    const store = getMemoryStore();
+    if (store.oppositeLocks.has(lockKey)) return false;
+    store.oppositeLocks.add(lockKey);
+    return true;
+  }
+  return redis.set(lockKey, "1", { nx: true, ex: REVIEW_LOCK_TTL_SECONDS });
 }
 
 export async function addCustomItem(
@@ -836,6 +957,12 @@ export async function deleteCustomItem(
     if (existing.authorUid !== uid)
       return { deleted: false, reason: "forbidden" };
     store.customItems.delete(itemId);
+    const linkKey = resolveCustomItemSharedKey(existing);
+    if (linkKey) {
+      store.oppositeLocks.delete(
+        `custom:link:lock:${existing.boothCode}:${existing.kind}:${linkKey}`
+      );
+    }
     return { deleted: true };
   }
 
@@ -844,7 +971,15 @@ export async function deleteCustomItem(
   if (!parsed) return { deleted: false, reason: "not_found" };
   if (parsed.authorUid !== uid) return { deleted: false, reason: "forbidden" };
 
-  await redis.hdel("custom:items:all", itemId);
+  const linkKey = resolveCustomItemSharedKey(parsed);
+  if (linkKey) {
+    await Promise.all([
+      redis.hdel("custom:items:all", itemId),
+      redis.del(`custom:link:lock:${parsed.boothCode}:${parsed.kind}:${linkKey}`),
+    ]);
+  } else {
+    await redis.hdel("custom:items:all", itemId);
+  }
   return { deleted: true };
 }
 

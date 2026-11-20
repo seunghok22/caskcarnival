@@ -84,6 +84,7 @@ export function MyReviewsModal({
             cask: b.cask,
             age: b.age,
             vintage: b.vintage,
+            peated: b.peated,
             whiskybaseUrl: b.whiskybaseUrl,
           };
         }
@@ -101,12 +102,15 @@ export function MyReviewsModal({
             cask: t.cask,
             age: t.age,
             vintage: t.vintage,
+            peated: t.peated,
             whiskybaseUrl: t.whiskybaseUrl,
           };
         }
       }
 
-      const bMatch = booth.bottles.find((x) => getReviewKey(x.id) === reviewKey);
+      const bMatch = booth.bottles.find(
+        (x) => (x.sharedReviewKey || getReviewKey(x.id)) === reviewKey
+      );
       if (bMatch) {
         return {
           booth,
@@ -128,10 +132,13 @@ export function MyReviewsModal({
           cask: bMatch.cask,
           age: bMatch.age,
           vintage: bMatch.vintage,
+          peated: bMatch.peated,
           whiskybaseUrl: bMatch.whiskybaseUrl,
         };
       }
-      const tMatch = booth.tastings.find((x) => getReviewKey(x.id) === reviewKey);
+      const tMatch = booth.tastings.find(
+        (x) => (x.sharedReviewKey || getReviewKey(x.id)) === reviewKey
+      );
       if (tMatch) {
         return {
           booth,
@@ -145,6 +152,7 @@ export function MyReviewsModal({
           cask: tMatch.cask,
           age: tMatch.age,
           vintage: tMatch.vintage,
+          peated: tMatch.peated,
           whiskybaseUrl: tMatch.whiskybaseUrl,
         };
       }
@@ -181,6 +189,7 @@ export function MyReviewsModal({
         if (meta.cask) specs.push(`캐스크: ${meta.cask}`);
         if (meta.age) specs.push(`숙성기간: ${meta.age}`);
         if (meta.vintage) specs.push(`빈티지: ${meta.vintage}`);
+        if (meta.peated) specs.push(`피트: ${meta.peated}`);
         if (specs.length > 0) {
           lines.push(`   ${specs.join(" | ")}`);
         }

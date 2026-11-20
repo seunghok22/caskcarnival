@@ -1,17 +1,24 @@
 import { NextResponse } from "next/server";
-import { BOOTHS } from "@/data/booths";
+import {
+  BOOTHS,
+  findStaticReviewKeyByName,
+  getReviewKey,
+  normalizeItemName,
+} from "@/data/booths";
 import {
   attachUidCookie,
   getClientIp,
   getOrCreateClientUid,
 } from "@/lib/identity";
 import {
+  acquireOppositeLinkLock,
   addCustomItem,
   checkRelaxedIpRateLimit,
   checkUserContributionLimit,
+  isValidItemId,
 } from "@/lib/redis";
 
-const VALID_BOOTH_CODES = new Set(BOOTHS.map((b) => b.code));
+const BOOTH_BY_CODE = new Map(BOOTHS.map((b) => [b.code, b]));
 
 function cleanStr(val: unknown, maxLen: number): string | undefined {
   if (typeof val !== "string") return undefined;
@@ -48,7 +55,8 @@ export async function POST(req: Request) {
     const kind = body.kind === "bottle" ? "bottle" : body.kind === "tasting" ? "tasting" : null;
     const name = cleanStr(body.name, 100);
 
-    if (!boothCode || !VALID_BOOTH_CODES.has(boothCode)) {
+    const targetBooth = boothCode ? BOOTH_BY_CODE.get(boothCode) : undefined;
+    if (!boothCode || !targetBooth) {
       return NextResponse.json(
         { error: "올바르지 않은 부스입니다." },
         { status: 400 }
@@ -73,8 +81,42 @@ export async function POST(req: Request) {
     const cask = cleanStr(body.cask, 80);
     const age = cleanStr(body.age, 30);
     const vintage = cleanStr(body.vintage, 20);
+    const peated = cleanStr(body.peated, 20);
     const whiskybaseUrl = cleanStr(body.whiskybaseUrl, 250);
     const note = cleanStr(body.note, 150);
+    const rawSharedReviewKey = cleanStr(body.sharedReviewKey, 80);
+
+    if (rawSharedReviewKey && !(await isValidItemId(rawSharedReviewKey))) {
+      return NextResponse.json(
+        { error: "연결할 원본 제품을 찾을 수 없습니다." },
+        { status: 400 }
+      );
+    }
+
+    // 명시적 연결 키가 없어도 같은 부스 내 동일 이름의 정적 항목이 있으면 자동 연결
+    const sharedReviewKey =
+      rawSharedReviewKey || findStaticReviewKeyByName(boothCode, name);
+
+    // 정적 목록에 이미 같은 제품이 등록되어 있는지 확인 (0 Redis calls)
+    const normName = normalizeItemName(name);
+    const existingStaticList =
+      kind === "bottle" ? targetBooth.bottles : targetBooth.tastings;
+    const alreadyInStatic = existingStaticList.some(
+      (item) =>
+        normalizeItemName(item.name) === normName ||
+        (sharedReviewKey ? getReviewKey(item.id) === sharedReviewKey : false)
+    );
+    if (alreadyInStatic) {
+      return NextResponse.json(
+        {
+          error:
+            kind === "bottle"
+              ? "이미 판매 보틀 목록에 등록된 제품입니다."
+              : "이미 시음 목록에 등록된 제품입니다.",
+        },
+        { status: 409 }
+      );
+    }
 
     if (whiskybaseUrl && !isValidWhiskybaseUrl(whiskybaseUrl)) {
       return NextResponse.json(
@@ -121,6 +163,27 @@ export async function POST(req: Request) {
       return attachUidCookie(res, uid, isNew);
     }
 
+    // 연결 항목(반대 목록 추가)의 동시 중복 생성 방지 (O(1) SETNX)
+    if (sharedReviewKey) {
+      const acquired = await acquireOppositeLinkLock(
+        boothCode,
+        kind,
+        sharedReviewKey
+      );
+      if (!acquired) {
+        const res = NextResponse.json(
+          {
+            error:
+              kind === "bottle"
+                ? "이미 판매 보틀 목록에 추가된 제품입니다."
+                : "이미 시음 목록에 추가된 제품입니다.",
+          },
+          { status: 409 }
+        );
+        return attachUidCookie(res, uid, isNew);
+      }
+    }
+
     const created = await addCustomItem(
       {
         boothCode,
@@ -135,7 +198,9 @@ export async function POST(req: Request) {
         cask,
         vintage,
         age,
+        peated,
         whiskybaseUrl,
+        sharedReviewKey,
       },
       uid
     );

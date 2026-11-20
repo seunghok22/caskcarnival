@@ -2,7 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Star } from "lucide-react";
-import { BOOTHS, getReviewKey, getSharedReviewItemIds } from "@/data/booths";
+import {
+  BOOTHS,
+  getReviewKey,
+  getSharedReviewItemIds,
+  normalizeItemName,
+} from "@/data/booths";
 import type {
   Booth,
   BottleDynamicStatus,
@@ -45,6 +50,7 @@ function applyPatchToTasting(t: TastingItem, p?: ItemPatch): TastingItem {
     cask: t.cask || p.cask,
     age: t.age || p.age,
     vintage: t.vintage || p.vintage,
+    peated: t.peated || p.peated,
     whiskybaseUrl: t.whiskybaseUrl || p.whiskybaseUrl,
     note: t.note && t.note !== "현장 시음" ? t.note : p.note || t.note,
     priceLabel:
@@ -66,6 +72,7 @@ function applyPatchToBottle(b: BottleItem, p?: ItemPatch): BottleItem {
     cask: b.cask || p.cask,
     age: b.age || p.age,
     vintage: b.vintage || p.vintage,
+    peated: b.peated || p.peated,
     whiskybaseUrl: b.whiskybaseUrl || p.whiskybaseUrl,
     note: b.note || p.note,
     price:
@@ -74,6 +81,29 @@ function applyPatchToBottle(b: BottleItem, p?: ItemPatch): BottleItem {
         : typeof p.price === "number" && p.price >= 0
         ? p.price
         : b.price,
+  };
+}
+
+function getMergedPatch(
+  itemId: string,
+  reviewKey: string,
+  patches: Record<string, ItemPatch>
+): ItemPatch | undefined {
+  const own = patches[itemId];
+  const shared = reviewKey !== itemId ? patches[reviewKey] : undefined;
+  if (!own && !shared) return undefined;
+  if (!shared) return own;
+  return {
+    distillery: own?.distillery || shared.distillery,
+    abv: own?.abv || shared.abv,
+    cask: own?.cask || shared.cask,
+    age: own?.age || shared.age,
+    vintage: own?.vintage || shared.vintage,
+    peated: own?.peated || shared.peated,
+    whiskybaseUrl: own?.whiskybaseUrl || shared.whiskybaseUrl,
+    note: own?.note || shared.note,
+    price: own?.price,
+    priceLabel: own?.priceLabel,
   };
 }
 
@@ -172,14 +202,17 @@ export function FestivalApp() {
 
     return BOOTHS.map((booth) => {
       const patchedTastings = booth.tastings.map((t) =>
-        applyPatchToTasting(t, patches[t.id])
+        applyPatchToTasting(t, getMergedPatch(t.id, getReviewKey(t.id), patches))
       );
       const patchedBottles = booth.bottles.map((b) =>
-        applyPatchToBottle(b, patches[b.id])
+        applyPatchToBottle(b, getMergedPatch(b.id, getReviewKey(b.id), patches))
       );
 
       const extras = customByBooth.get(booth.code) ?? [];
       for (const c of extras) {
+        const effectiveKey = c.sharedReviewKey || c.id;
+        const linkedPatch = getMergedPatch(c.id, effectiveKey, patches);
+
         if (c.kind === "tasting") {
           patchedTastings.push(
             applyPatchToTasting(
@@ -193,11 +226,13 @@ export function FestivalApp() {
                 cask: c.cask,
                 vintage: c.vintage,
                 age: c.age,
+                peated: c.peated,
                 whiskybaseUrl: c.whiskybaseUrl,
                 isUserContributed: true,
                 isMine: c.isMine,
+                sharedReviewKey: c.sharedReviewKey,
               },
-              patches[c.id]
+              linkedPatch
             )
           );
         } else {
@@ -214,11 +249,13 @@ export function FestivalApp() {
                 cask: c.cask,
                 vintage: c.vintage,
                 age: c.age,
+                peated: c.peated,
                 whiskybaseUrl: c.whiskybaseUrl,
                 isUserContributed: true,
                 isMine: c.isMine,
+                sharedReviewKey: c.sharedReviewKey,
               },
-              patches[c.id]
+              linkedPatch
             )
           );
         }
@@ -248,19 +285,54 @@ export function FestivalApp() {
   const selectedBooth =
     mergedBooths.find((b) => b.id === selectedBoothId) ?? mergedBooths[0];
 
-  const selectedDetail = useMemo<SelectedDetailItem | null>(() => {
+  const selectedDetailInfo = useMemo<{
+    detail: SelectedDetailItem;
+    boothCode: string;
+    hasOppositeListing: boolean;
+    effectiveReviewKey: string;
+  } | null>(() => {
     if (!selectedRef) return null;
     for (const booth of mergedBooths) {
       if (selectedRef.kind === "bottle") {
         const found = booth.bottles.find((b) => b.id === selectedRef.id);
-        if (found) return { kind: "bottle", item: found };
+        if (found) {
+          const normName = normalizeItemName(found.name);
+          const rKey = found.sharedReviewKey || getReviewKey(found.id);
+          const hasOppositeListing = booth.tastings.some(
+            (t) =>
+              normalizeItemName(t.name) === normName ||
+              (t.sharedReviewKey || getReviewKey(t.id)) === rKey
+          );
+          return {
+            detail: { kind: "bottle", item: found },
+            boothCode: booth.code,
+            hasOppositeListing,
+            effectiveReviewKey: rKey,
+          };
+        }
       } else {
         const found = booth.tastings.find((t) => t.id === selectedRef.id);
-        if (found) return { kind: "tasting", item: found };
+        if (found) {
+          const normName = normalizeItemName(found.name);
+          const rKey = found.sharedReviewKey || getReviewKey(found.id);
+          const hasOppositeListing = booth.bottles.some(
+            (b) =>
+              normalizeItemName(b.name) === normName ||
+              (b.sharedReviewKey || getReviewKey(b.id)) === rKey
+          );
+          return {
+            detail: { kind: "tasting", item: found },
+            boothCode: booth.code,
+            hasOppositeListing,
+            effectiveReviewKey: rKey,
+          };
+        }
       }
     }
     return null;
   }, [mergedBooths, selectedRef]);
+
+  const selectedDetail = selectedDetailInfo?.detail ?? null;
 
   function handleToggleWanted(itemId: string) {
     setWantedKeys((prev) => {
@@ -283,7 +355,7 @@ export function FestivalApp() {
   }
 
   function handleReviewSubmitted(itemId: string, quantity: number) {
-    const rKey = getReviewKey(itemId);
+    const rKey = getDynamicReviewKey(itemId);
     const safeQty = Math.max(1, Math.min(99, Math.floor(quantity) || 1));
     setReviewedItemMap((prev) => {
       const next = { ...prev, [rKey]: { itemId, quantity: safeQty } };
@@ -297,7 +369,7 @@ export function FestivalApp() {
   }
 
   function handleReviewDeleted(itemId: string) {
-    const rKey = getReviewKey(itemId);
+    const rKey = getDynamicReviewKey(itemId);
     setReviewedItemMap((prev) => {
       const next = { ...prev };
       delete next[rKey];
@@ -310,8 +382,26 @@ export function FestivalApp() {
     });
   }
 
+  function getDynamicReviewKey(itemId: string): string {
+    const custom = customItems.find((c) => c.id === itemId);
+    if (custom?.sharedReviewKey) return custom.sharedReviewKey;
+    return getReviewKey(itemId);
+  }
+
+  function getDynamicSharedIds(itemId: string): string[] {
+    const rKey = getDynamicReviewKey(itemId);
+    const ids = new Set<string>(getSharedReviewItemIds(rKey));
+    ids.add(itemId);
+    for (const c of customItems) {
+      if ((c.sharedReviewKey || c.id) === rKey) {
+        ids.add(c.id);
+      }
+    }
+    return Array.from(ids);
+  }
+
   function handleStatusUpdated(updated: BottleDynamicStatus) {
-    const sharedIds = getSharedReviewItemIds(updated.bottleId);
+    const sharedIds = getDynamicSharedIds(updated.bottleId);
     setStatuses((prev) => {
       const next: Record<string, BottleDynamicStatus> = {
         ...prev,
@@ -336,14 +426,41 @@ export function FestivalApp() {
   }
 
   function handlePatchApplied(itemId: string, savedPatch: ItemPatch) {
-    setPatches((prev) => ({
-      ...prev,
-      [itemId]: savedPatch,
-    }));
+    const sharedIds = getDynamicSharedIds(itemId);
+    const { price: _p, priceLabel: _pl, ...sharedSpecs } = savedPatch;
+    void _p;
+    void _pl;
+    setPatches((prev) => {
+      const next = { ...prev, [itemId]: savedPatch };
+      for (const siblingId of sharedIds) {
+        if (siblingId === itemId) continue;
+        next[siblingId] = { ...prev[siblingId], ...sharedSpecs };
+      }
+      return next;
+    });
   }
 
   function handleCustomItemAdded(created: CustomBoothItem) {
     setCustomItems((prev) => [...prev, created]);
+    // 기존 항목과 연결되어 추가된 경우 평점·한줄평 상태를 즉시 동기화
+    if (created.sharedReviewKey) {
+      const sourceStatus = statuses[created.sharedReviewKey];
+      if (sourceStatus) {
+        setStatuses((prev) => ({
+          ...prev,
+          [created.id]: {
+            bottleId: created.id,
+            soldOutCount: 0,
+            isSoldOut: false,
+            hasVotedSoldOut: false,
+            ratingAvg: sourceStatus.ratingAvg,
+            ratingCount: sourceStatus.ratingCount,
+            reviews: sourceStatus.reviews,
+            hasReviewed: sourceStatus.hasReviewed,
+          },
+        }));
+      }
+    }
   }
 
   function handleCustomItemDeleted(itemId: string) {
@@ -360,12 +477,17 @@ export function FestivalApp() {
   }, [wantedKeys, itemPriceMap]);
 
   const reviewedTotal = useMemo(() => {
+    const customKeyMap = new Map<string, string>();
+    for (const c of customItems) {
+      if (c.sharedReviewKey) customKeyMap.set(c.id, c.sharedReviewKey);
+    }
+
     const countedReviewKeys = new Set<string>();
     let sum = 0;
 
     for (const [itemId, st] of Object.entries(statuses)) {
       if (!st?.hasReviewed) continue;
-      const rKey = getReviewKey(itemId);
+      const rKey = customKeyMap.get(itemId) ?? getReviewKey(itemId);
       if (countedReviewKeys.has(rKey)) continue;
       countedReviewKeys.add(rKey);
 
@@ -376,7 +498,7 @@ export function FestivalApp() {
     }
 
     return sum;
-  }, [statuses, reviewedItemMap, itemPriceMap]);
+  }, [statuses, reviewedItemMap, itemPriceMap, customItems]);
 
   return (
     <main className="mx-auto flex min-h-screen max-w-5xl flex-col gap-5 px-4 py-6">
@@ -437,10 +559,13 @@ export function FestivalApp() {
         }
       />
 
-      {/* 3. 시음/보틀 상세 / 빈 정보 채우기 / 평점 / 한줄평 / 매진 제안 모달 */}
-      {selectedDetail && (
+      {/* 3. 시음/보틀 상세 / 빈 정보 채우기 / 반대 목록 추가 / 평점 / 한줄평 / 매진 제안 모달 */}
+      {selectedDetail && selectedDetailInfo && (
         <BottleModal
           detail={selectedDetail}
+          boothCode={selectedDetailInfo.boothCode}
+          hasOppositeListing={selectedDetailInfo.hasOppositeListing}
+          effectiveReviewKey={selectedDetailInfo.effectiveReviewKey}
           status={statuses[selectedDetail.item.id]}
           isWanted={wantedKeys.has(selectedDetail.item.id)}
           onToggleWanted={() => handleToggleWanted(selectedDetail.item.id)}
@@ -449,6 +574,7 @@ export function FestivalApp() {
           }
           onReviewDeleted={() => handleReviewDeleted(selectedDetail.item.id)}
           onPatchApplied={handlePatchApplied}
+          onOppositeItemAdded={handleCustomItemAdded}
           onCustomItemDeleted={handleCustomItemDeleted}
           onClose={() => setSelectedRef(null)}
           onStatusUpdated={handleStatusUpdated}

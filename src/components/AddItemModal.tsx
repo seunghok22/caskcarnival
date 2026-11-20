@@ -26,6 +26,7 @@ export function AddItemModal({
   const [cask, setCask] = useState("");
   const [age, setAge] = useState("");
   const [vintage, setVintage] = useState("");
+  const [peated, setPeated] = useState("");
   const [whiskybaseUrl, setWhiskybaseUrl] = useState("");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -52,6 +53,7 @@ export function AddItemModal({
           cask,
           age,
           vintage,
+          peated,
           whiskybaseUrl,
           note,
         }),
@@ -235,6 +237,20 @@ export function AddItemModal({
               />
             </div>
             <div>
+              <label className="mb-1 block text-stone-400">피트 여부</label>
+              <select
+                value={peated}
+                onChange={(e) => setPeated(e.target.value)}
+                className="w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2 text-xs text-stone-100 focus:border-amber-500 focus:outline-none"
+              >
+                <option value="">선택 안 함</option>
+                <option value="피트">피트 (Peated)</option>
+                <option value="라이트 피트">라이트 피트 (Lightly Peated)</option>
+                <option value="헤비 피트">헤비 피트 (Heavily Peated)</option>
+                <option value="논피트">논피트 (Unpeated)</option>
+              </select>
+            </div>
+            <div className="col-span-2">
               <label className="mb-1 block text-stone-400">메모/노트</label>
               <input
                 type="text"

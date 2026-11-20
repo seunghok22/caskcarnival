@@ -75,6 +75,7 @@ export async function POST(req: Request) {
     const cask = cleanField(raw.cask, 80);
     const age = cleanField(raw.age, 30);
     const vintage = cleanField(raw.vintage, 20);
+    const peated = cleanField(raw.peated, 20);
     const whiskybaseUrl = cleanField(raw.whiskybaseUrl, 250);
     const note = cleanField(raw.note, 150);
 
@@ -100,6 +101,9 @@ export async function POST(req: Request) {
     }
     if (vintage && !base?.vintage) {
       patch.vintage = vintage;
+    }
+    if (peated && !base?.peated) {
+      patch.peated = peated;
     }
     if (whiskybaseUrl && !base?.whiskybaseUrl) {
       patch.whiskybaseUrl = whiskybaseUrl;

@@ -611,22 +611,28 @@ export const ALL_ITEM_IDS = BOOTHS.flatMap((booth) => [
   ...booth.bottles.map((bottle) => bottle.id),
 ]);
 
+export function normalizeItemName(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, "");
+}
+
 // 같은 부스 내에서 시음(tasting)과 판매 보틀(bottle)의 이름이 같으면
 // 평점·한줄평 키(reviewKey)를 공유하고, 매진 상태는 각 항목 ID별로 독립 관리합니다.
 const ITEM_REVIEW_KEY_MAP: Record<string, string> = {};
 const REVIEW_KEY_GROUP_MAP: Record<string, string[]> = {};
+const STATIC_BOOTH_NAME_TO_REVIEW_KEY: Record<string, string> = {};
 
 for (const booth of BOOTHS) {
   const bottleByName = new Map<string, string>();
   for (const bottle of booth.bottles) {
-    const norm = bottle.name.trim().toLowerCase();
+    const norm = normalizeItemName(bottle.name);
     bottleByName.set(norm, bottle.id);
     ITEM_REVIEW_KEY_MAP[bottle.id] = bottle.id;
     REVIEW_KEY_GROUP_MAP[bottle.id] = [bottle.id];
+    STATIC_BOOTH_NAME_TO_REVIEW_KEY[`${booth.code}::${norm}`] = bottle.id;
   }
 
   for (const tasting of booth.tastings) {
-    const norm = tasting.name.trim().toLowerCase();
+    const norm = normalizeItemName(tasting.name);
     const matchedBottleId = bottleByName.get(norm);
     const reviewKey = matchedBottleId ?? tasting.id;
     ITEM_REVIEW_KEY_MAP[tasting.id] = reviewKey;
@@ -634,6 +640,9 @@ for (const booth of BOOTHS) {
       REVIEW_KEY_GROUP_MAP[reviewKey] = [];
     }
     REVIEW_KEY_GROUP_MAP[reviewKey].push(tasting.id);
+    if (!STATIC_BOOTH_NAME_TO_REVIEW_KEY[`${booth.code}::${norm}`]) {
+      STATIC_BOOTH_NAME_TO_REVIEW_KEY[`${booth.code}::${norm}`] = reviewKey;
+    }
   }
 }
 
@@ -644,4 +653,13 @@ export function getReviewKey(itemId: string): string {
 export function getSharedReviewItemIds(itemId: string): string[] {
   const key = getReviewKey(itemId);
   return REVIEW_KEY_GROUP_MAP[key] ?? [itemId];
+}
+
+export function findStaticReviewKeyByName(
+  boothCode: string,
+  name: string
+): string | undefined {
+  const norm = normalizeItemName(name);
+  if (!norm) return undefined;
+  return STATIC_BOOTH_NAME_TO_REVIEW_KEY[`${boothCode}::${norm}`];
 }

@@ -10,9 +10,11 @@ export interface TastingItem {
   cask?: string;
   vintage?: string;
   age?: string;
+  peated?: string;
   whiskybaseUrl?: string;
   isUserContributed?: boolean;
   isMine?: boolean;
+  sharedReviewKey?: string;
 }
 
 export interface BottleItem {
@@ -26,9 +28,11 @@ export interface BottleItem {
   cask?: string;
   vintage?: string;
   age?: string;
+  peated?: string;
   whiskybaseUrl?: string;
   isUserContributed?: boolean;
   isMine?: boolean;
+  sharedReviewKey?: string;
 }
 
 export interface ItemPatch {
@@ -37,6 +41,7 @@ export interface ItemPatch {
   cask?: string;
   age?: string;
   vintage?: string;
+  peated?: string;
   whiskybaseUrl?: string;
   note?: string;
   price?: number;
@@ -57,10 +62,12 @@ export interface CustomBoothItem {
   cask?: string;
   vintage?: string;
   age?: string;
+  peated?: string;
   whiskybaseUrl?: string;
   createdAt: string;
   isUserContributed: true;
   isMine?: boolean;
+  sharedReviewKey?: string;
 }
 
 export interface Booth {
