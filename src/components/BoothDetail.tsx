@@ -75,6 +75,7 @@ export function BoothDetail({
     "booths"
   );
   const [excludeSoldOut, setExcludeSoldOut] = useState(false);
+  const [onlyWanted, setOnlyWanted] = useState(false);
   const [selectedDistillery, setSelectedDistillery] = useState<string>("ALL");
   const [sortBy, setSortBy] = useState<AllBottleSort>("default");
 
@@ -103,8 +104,13 @@ export function BoothDetail({
           booth,
           item: bottle,
           distillery: dist,
-          numericPrice: bottle.price,
-          priceDisplay: `${bottle.price.toLocaleString("ko-KR")}원`,
+          numericPrice: bottle.price >= 0 ? bottle.price : null,
+          priceDisplay:
+            bottle.price > 0
+              ? `${bottle.price.toLocaleString("ko-KR")}원`
+              : bottle.price === 0
+              ? "무료"
+              : "가격 미정",
         });
       }
     }
@@ -122,6 +128,9 @@ export function BoothDetail({
   const filteredEntries = useMemo(() => {
     const filtered = allEntries.filter((entry) => {
       if (excludeSoldOut && statuses[entry.item.id]?.isSoldOut) {
+        return false;
+      }
+      if (onlyWanted && !wantedKeys.has(entry.item.id)) {
         return false;
       }
       if (
@@ -160,7 +169,7 @@ export function BoothDetail({
 
       return 0;
     });
-  }, [allEntries, excludeSoldOut, selectedDistillery, sortBy, statuses]);
+  }, [allEntries, excludeSoldOut, onlyWanted, selectedDistillery, sortBy, statuses, wantedKeys]);
 
   useEffect(() => {
     if (selectedBooth.tastings.length === 0 && selectedBooth.bottles.length > 0) {
@@ -402,7 +411,11 @@ export function BoothDetail({
                         </div>
                         <div className="flex shrink-0 items-center gap-1.5">
                           <span className="text-sm font-bold text-amber-300">
-                            {bottle.price.toLocaleString("ko-KR")}원
+                            {bottle.price > 0
+                              ? `${bottle.price.toLocaleString("ko-KR")}원`
+                              : bottle.price === 0
+                              ? "무료"
+                              : "가격 미정"}
                           </span>
                           <ChevronRight className="h-4 w-4 text-stone-500 group-hover:text-amber-300" />
                         </div>
@@ -559,6 +572,23 @@ export function BoothDetail({
                 }`}
               >
                 매진 제외
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setOnlyWanted((v) => !v)}
+                className={`inline-flex items-center gap-1 rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${
+                  onlyWanted
+                    ? "border-amber-400 bg-amber-500/20 text-amber-200"
+                    : "border-stone-700 bg-stone-900/80 text-stone-300 hover:border-stone-600"
+                }`}
+              >
+                <Bookmark
+                  className={`h-3.5 w-3.5 ${
+                    onlyWanted ? "fill-amber-400 text-amber-400" : "text-stone-400"
+                  }`}
+                />
+                <span>Wanted만</span>
               </button>
 
               <select

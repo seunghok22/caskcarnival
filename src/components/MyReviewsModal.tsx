@@ -73,7 +73,12 @@ export function MyReviewsModal({
             itemId: b.id,
             name: b.name,
             quantity,
-            priceText: `${b.price.toLocaleString("ko-KR")}원`,
+            priceText:
+              b.price > 0
+                ? `${b.price.toLocaleString("ko-KR")}원`
+                : b.price === 0
+                ? "무료"
+                : "가격 미정",
             distillery: b.distillery && b.distillery !== "-" ? b.distillery : undefined,
             abv: b.abv && b.abv !== "-" ? b.abv : undefined,
             cask: b.cask,
@@ -109,7 +114,12 @@ export function MyReviewsModal({
           itemId: bMatch.id,
           name: bMatch.name,
           quantity,
-          priceText: `${bMatch.price.toLocaleString("ko-KR")}원`,
+          priceText:
+            bMatch.price > 0
+              ? `${bMatch.price.toLocaleString("ko-KR")}원`
+              : bMatch.price === 0
+              ? "무료"
+              : "가격 미정",
           distillery:
             bMatch.distillery && bMatch.distillery !== "-"
               ? bMatch.distillery

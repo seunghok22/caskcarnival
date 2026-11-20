@@ -151,15 +151,14 @@ export function AddItemModal({
           {kind === "bottle" ? (
             <div>
               <label className="mb-1 block font-semibold text-stone-300">
-                판매 가격 (원) *
+                판매 가격 (원, 선택)
               </label>
               <input
                 type="number"
-                required
-                min={1}
+                min={0}
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
-                placeholder="예: 250000"
+                placeholder="예: 250000 (미입력 시 가격 미정)"
                 className="w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2 text-sm text-stone-100 placeholder:text-stone-500 focus:border-amber-500 focus:outline-none"
               />
             </div>

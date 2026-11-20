@@ -411,7 +411,11 @@ export function BottleModal({
             </h3>
             <div className="mt-1 text-base font-bold text-amber-300">
               {kind === "bottle"
-                ? `${item.price.toLocaleString("ko-KR")}원`
+                ? item.price > 0
+                  ? `${item.price.toLocaleString("ko-KR")}원`
+                  : item.price === 0
+                  ? "무료"
+                  : "가격 미정"
                 : item.priceLabel}
             </div>
           </div>

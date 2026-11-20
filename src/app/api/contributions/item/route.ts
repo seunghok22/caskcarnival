@@ -87,14 +87,19 @@ export async function POST(req: Request) {
     let priceLabel: string | undefined;
 
     if (kind === "bottle") {
-      const priceNum = Number(String(body.price ?? "").replace(/[^0-9]/g, ""));
-      if (!Number.isFinite(priceNum) || priceNum <= 0 || priceNum > 100_000_000) {
-        return NextResponse.json(
-          { error: "판매 보틀 가격을 올바른 숫자로 입력해 주세요." },
-          { status: 400 }
-        );
+      const rawDigits = String(body.price ?? "").replace(/[^0-9]/g, "");
+      if (!rawDigits) {
+        price = -1; // 미입력: 가격 미정
+      } else {
+        const priceNum = Number(rawDigits);
+        if (!Number.isFinite(priceNum) || priceNum < 0 || priceNum > 100_000_000) {
+          return NextResponse.json(
+            { error: "판매 보틀 가격을 올바른 숫자로 입력해 주세요." },
+            { status: 400 }
+          );
+        }
+        price = Math.round(priceNum); // 0이면 무료, 양수면 판매가
       }
-      price = Math.round(priceNum);
     } else {
       const rawPrice = cleanStr(body.priceLabel, 40);
       if (!rawPrice) {

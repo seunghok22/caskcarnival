@@ -199,7 +199,7 @@ export function FestivalApp() {
                 distillery: c.distillery || "-",
                 abv: c.abv || "-",
                 volume: c.volume || "700ml",
-                price: c.price ?? 0,
+                price: c.price ?? -1,
                 note: c.note,
                 cask: c.cask,
                 vintage: c.vintage,
@@ -229,7 +229,7 @@ export function FestivalApp() {
         map[t.id] = parseTastingPrice(t.priceLabel);
       }
       for (const b of booth.bottles) {
-        map[b.id] = b.price;
+        map[b.id] = b.price > 0 ? b.price : 0;
       }
     }
     return map;
